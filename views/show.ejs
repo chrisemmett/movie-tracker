@@ -1,0 +1,54 @@
+<%- include('partials/header', { pageTitle: movie.title }) %>
+
+<a class="back" href="/">&larr; Back to collection</a>
+
+<article class="detail">
+  <div class="detail-poster">
+    <% var img = movie.image_file ? ('/uploads/' + movie.image_file) : (movie.poster_url || null); %>
+    <% if (img) { %>
+      <img src="<%= img %>" alt="<%= movie.title %> cover" />
+    <% } else { %>
+      <div class="poster placeholder large">No image</div>
+    <% } %>
+    <span class="badge badge-<%= movie.format === 'UHD' ? 'uhd' : 'bluray' %>"><%= movie.format %></span>
+  </div>
+
+  <div class="detail-info">
+    <h1><%= movie.title %> <% if (movie.year) { %><span class="muted">(<%= movie.year %>)</span><% } %></h1>
+
+    <dl class="facts">
+      <% function row(label, val){ %>
+        <% if (val) { %><dt><%= label %></dt><dd><%= val %></dd><% } %>
+      <% } %>
+      <%- '' %>
+      <% row('Studio', movie.studio) %>
+      <% row('Distributor', movie.distributor) %>
+      <% row('Format', movie.format) %>
+      <% row('Rated', movie.rated) %>
+      <% row('Runtime', movie.runtime) %>
+      <% row('Genre', movie.genre) %>
+      <% row('Director', movie.director) %>
+      <% row('Writer', movie.writer) %>
+      <% row('Cast', movie.actors) %>
+      <% row('Released', movie.released) %>
+      <% row('Language', movie.language) %>
+      <% row('Country', movie.country) %>
+      <% row('IMDb rating', movie.imdb_rating) %>
+    </dl>
+
+    <% if (movie.plot) { %><p class="plot"><%= movie.plot %></p><% } %>
+
+    <% if (movie.imdb_id) { %>
+      <p><a class="link" href="https://www.imdb.com/title/<%= movie.imdb_id %>/" target="_blank" rel="noopener">View on IMDb &nearr;</a></p>
+    <% } %>
+
+    <div class="actions">
+      <a class="btn" href="/movies/<%= movie.id %>/edit">Edit</a>
+      <form method="POST" action="/movies/<%= movie.id %>?_method=DELETE" onsubmit="return confirm('Delete &quot;<%= movie.title %>&quot; from your collection?');">
+        <button class="btn btn-danger" type="submit">Delete</button>
+      </form>
+    </div>
+  </div>
+</article>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,49 @@
+<%- include('partials/header', { pageTitle: 'Disc Collection' }) %>
+
+<form class="filters" method="GET" action="/">
+  <input type="search" name="q" value="<%= q %>" placeholder="Search title, studio, distributor, director…" />
+  <select name="format">
+    <option value="">All formats</option>
+    <% formats.forEach(function(f){ %>
+      <option value="<%= f %>" <%= format === f ? 'selected' : '' %>><%= f %></option>
+    <% }); %>
+  </select>
+  <button class="btn" type="submit">Filter</button>
+  <% if (q || format) { %><a class="btn btn-ghost" href="/">Clear</a><% } %>
+</form>
+
+<p class="count"><%= movies.length %> title<%= movies.length === 1 ? '' : 's' %></p>
+
+<% if (movies.length === 0) { %>
+  <div class="empty">
+    <p>No discs yet.</p>
+    <a class="btn btn-primary" href="/movies/new">Add your first title</a>
+  </div>
+<% } else { %>
+  <ul class="grid">
+    <% movies.forEach(function(m){ %>
+      <li class="card">
+        <a href="/movies/<%= m.id %>" class="card-link">
+          <div class="poster">
+            <% var img = m.image_file ? ('/uploads/' + m.image_file) : (m.poster_url || null); %>
+            <% if (img) { %>
+              <img src="<%= img %>" alt="<%= m.title %> cover" loading="lazy" />
+            <% } else { %>
+              <div class="poster placeholder">No image</div>
+            <% } %>
+            <span class="badge badge-<%= m.format === 'UHD' ? 'uhd' : 'bluray' %>"><%= m.format %></span>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title"><%= m.title %></h3>
+            <p class="card-meta">
+              <% if (m.year) { %><span><%= m.year %></span><% } %>
+              <% if (m.studio) { %><span><%= m.studio %></span><% } %>
+            </p>
+          </div>
+        </a>
+      </li>
+    <% }); %>
+  </ul>
+<% } %>
+
+<%- include('partials/footer') %>

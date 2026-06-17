@@ -1,0 +1,46 @@
+# Docker Compose stack for the disc collection tracker.
+# Designed to run on a NAS: edit the volume paths below to point at the
+# folders on your NAS where you want the database and cover images to live.
+
+services:
+  app:
+    build: .
+    image: movie-tracker:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-movietracker}
+      DB_USER: ${DB_USER:-movietracker}
+      DB_PASSWORD: ${DB_PASSWORD:-movietracker}
+      UPLOAD_DIR: /data/uploads
+      OMDB_API_KEY: ${OMDB_API_KEY}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Cover images uploaded through the app. Point the left side at a
+      # folder on your NAS to keep images outside the container.
+      - ./data/uploads:/data/uploads
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-movietracker}
+      MYSQL_USER: ${DB_USER:-movietracker}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-movietracker}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+    volumes:
+      # MySQL data files. Point the left side at a folder on your NAS for
+      # persistent, backup-friendly storage.
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
