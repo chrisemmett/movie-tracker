@@ -2,45 +2,40 @@ require('dotenv').config();
 
 const path = require('path');
 const express = require('express');
-const methodOverride = require('method-override');
 
 const { initDb } = require('./db');
 const { UPLOAD_DIR } = require('./upload');
-const moviesRouter = require('./routes/movies');
+const discsRouter = require('./routes/discs');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, '..', 'views'));
-
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(methodOverride('_method'));
 
-// Static assets and uploaded cover images.
-app.use('/public', express.static(path.join(__dirname, '..', 'public')));
+// Uploaded cover images (stored on the NAS volume) and the static SPA.
 app.use('/uploads', express.static(UPLOAD_DIR));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
-app.use('/', moviesRouter);
+app.use('/', discsRouter);
 
-// 404
+// Unknown API routes return JSON; everything else falls back to the SPA shell.
 app.use((req, res) => {
-  res.status(404).render('error', { message: 'Page not found.' });
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found' });
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// Error handler
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err);
   const status = err.status || 500;
-  res.status(status).render('error', { message: err.message || 'Something went wrong.' });
+  res.status(status).json({ error: err.message || 'Something went wrong.' });
 });
 
 initDb()
   .then(() => {
-    app.listen(PORT, () => console.log(`Movie tracker listening on http://localhost:${PORT}`));
+    app.listen(PORT, () => console.log(`STACKS listening on http://localhost:${PORT}`));
   })
   .catch((err) => {
     console.error('Failed to initialize database:', err);

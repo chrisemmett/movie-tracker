@@ -50,15 +50,27 @@ async function search(query, { type = 'movie', page = 1 } = {}) {
   }));
 }
 
+// Normalize OMDB's verbose rating source names to short labels.
+function shortSource(s) {
+  if (/Rotten/i.test(s)) return 'Rotten Tomatoes';
+  if (/Metacritic/i.test(s)) return 'Metacritic';
+  if (/Internet/i.test(s)) return 'IMDb';
+  return s;
+}
+
 // Full details for a single title by IMDb id. Returns a normalized object
 // matching our DB columns plus the raw payload for archival.
 async function detail(imdbID) {
   const d = await request({ i: imdbID, plot: 'full' });
   const clean = (v) => (v && v !== 'N/A' ? v : null);
+  const ratings = (d.Ratings || []).map((x) => ({
+    source: shortSource(x.Source),
+    value: x.Value,
+  }));
   return {
     imdb_id: clean(d.imdbID),
     title: clean(d.Title),
-    year: clean(d.Year),
+    year: clean(d.Year) ? String(d.Year).slice(0, 4) : null,
     rated: clean(d.Rated),
     released: clean(d.Released),
     runtime: clean(d.Runtime),
@@ -66,13 +78,15 @@ async function detail(imdbID) {
     director: clean(d.Director),
     writer: clean(d.Writer),
     actors: clean(d.Actors),
+    cast: clean(d.Actors),
     plot: clean(d.Plot),
     language: clean(d.Language),
     country: clean(d.Country),
     poster_url: clean(d.Poster),
     imdb_rating: clean(d.imdbRating),
+    ratings,
     omdb_raw: d,
   };
 }
 
-module.exports = { search, detail };
+module.exports = { search, detail, shortSource };
