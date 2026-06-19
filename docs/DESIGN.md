@@ -276,6 +276,12 @@ Single monolithic dark theme. Format-coded accents — amber for UHD, blue
 for Blu-ray, violet for Apple TV. CSS custom properties (`--accent`) drive
 per-format colouring; the wall grid is `repeat(auto-fill, minmax(155px, 1fr))`.
 
+The header + toolbar are wrapped in a `.site-header` container that uses
+`position: sticky; top: 0` with a translucent backdrop-blurred background,
+so the brand, stats, add button, search, and view controls stay pinned to
+the top of the viewport while only the wall / shelf / stats content
+scrolls beneath them.
+
 ---
 
 ## 7. Runtime & deployment
@@ -380,3 +386,4 @@ When you add a feature:
 ---
 
 *Last revised: 2026-06-19.*
+
