@@ -618,6 +618,10 @@
     syncFormFromDom();
     var f = state.form;
     if (!f.title || !f.title.trim()) return;
+    // Grab the chosen file before re-rendering — renderModals() rewrites the
+    // modal HTML, which would wipe the <input type="file"> and its selection.
+    var fileEl = document.getElementById('formImage');
+    var file = fileEl && fileEl.files && fileEl.files[0];
     state.saving = true; renderModals();
 
     var fd = new FormData();
@@ -628,8 +632,7 @@
     fd.append('ripped', f.ripped ? 'true' : 'false');
     fd.append('poster', f.poster || '');
     fd.append('ratings', JSON.stringify(f.ratings || []));
-    var fileEl = document.getElementById('formImage');
-    if (fileEl && fileEl.files && fileEl.files[0]) fd.append('image', fileEl.files[0]);
+    if (file) fd.append('image', file);
 
     var url = state.editId ? '/api/discs/' + state.editId : '/api/discs';
     api(url, { method: state.editId ? 'PUT' : 'POST', body: fd }).then(function () {
