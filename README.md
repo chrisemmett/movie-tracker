@@ -1,4 +1,4 @@
-# 🎞 STACKS — Physical Media Library
+# 🎞 STACKS — Media Library
 
 A self-hosted web app for cataloguing a physical **Blu-ray / 4K UHD** disc
 collection. Built to run in Docker on a NAS with a MySQL database. Browse your

@@ -14,8 +14,9 @@ the codebase quickly without re-deriving how the pieces fit together.
 
 ## 1. Purpose & scope
 
-STACKS is a single-user, self-hosted web app for cataloguing a physical
-Blu-ray / 4K UHD / Apple TV media collection. It runs on a NAS via Docker
+STACKS is a single-user, self-hosted web app for cataloguing a personal
+Blu-ray / 4K UHD / Apple TV media collection (physical discs and digital
+purchases alike). It runs on a NAS via Docker
 Compose, persists to MySQL, stores cover art on a Docker volume, and enriches
 each entry from the OMDB API. There is no authentication — it assumes a
 trusted LAN.
@@ -161,6 +162,13 @@ Internal helpers in this module:
 - Catalog code minting: on insert, if no `code` is provided, generate one
   from the primary format (`BD`, `UHD`, `ATV`) plus a zero-padded sequence
   (`BD 044`, `UHD 012`). Codes are preserved on update.
+- `findByTitle(title, excludeId)` — case-insensitive, trimmed lookup of an
+  existing row by title. POST and PUT call this before writing and reject
+  duplicates with HTTP `409` and `{ error, code: 'DUPLICATE_TITLE',
+  duplicateId, duplicateTitle }`; PUT passes the current row's id so
+  editing a disc without changing its title is not treated as a duplicate.
+  The client uses `duplicateId` to link from the warning straight to the
+  existing disc.
 
 Errors thrown from handlers receive HTTP status from `err.status`; the global
 handler in `server.js` JSON-encodes them.
@@ -286,6 +294,15 @@ The whole frontend is one IIFE with no framework. Key pieces:
   correlate with row order.
 - **Add modal autofocus**: opening the Add Disc modal focuses the OMDb
   search field immediately so the user can start typing without clicking.
+- **Duplicate-title guard**: when a save returns `409 DUPLICATE_TITLE`,
+  the details form stays open and renders a red inline warning above the
+  fields with a `View "<existing>"` link (closes the add modal and opens
+  the detail modal for the matching disc), plus `Change title` (clears
+  the warning and focuses the title input) and `Cancel` (closes the
+  modal) buttons. `state.duplicateWarning` holds `{ message, id, title }`
+  and is cleared on open/close/save. `api()` attaches the full parsed
+  error body as `err.data` so the handler can read `duplicateId` /
+  `duplicateTitle`.
 
 ### 6.3 `styles.css`
 
@@ -375,8 +392,12 @@ Buildx with `type=gha` cache. No tests run in CI (there are none).
   otherwise the client renders a generated cover. The backend prefers a
   local copy of OMDB posters and downloads them on add.
 - **Error shape.** Server errors are JSON `{ error: "message" }` with
-  appropriate status. Client throws on `!ok` and surfaces the message in the
-  UI.
+  appropriate status. Errors that the client needs to branch on also carry
+  a machine-readable `code` (e.g. `DUPLICATE_TITLE`) plus any extra fields
+  (e.g. `duplicateId`); the client's `api()` helper attaches `err.status`,
+  `err.code`, and the full parsed body as `err.data` to the thrown
+  `Error` so callers can react. Client throws on `!ok` and surfaces the
+  message in the UI.
 - **No auth, no rate limiting.** Designed for a trusted LAN. Put it behind a
   reverse proxy / VPN if you expose it.
 - **Schema migrations.** Idempotent and additive only. There is no
@@ -404,6 +425,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-19 (format tags now stored/displayed alphabetically).*
+*Last revised: 2026-06-19 (brand subtitle dropped "Physical"; duplicate-title guard on create/update).*
 
 

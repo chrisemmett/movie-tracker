@@ -1,4 +1,4 @@
-/* STACKS — Physical Media Library (client).
+/* STACKS — Media Library (client).
  * Vanilla JS SPA backed by the Express + MySQL JSON API. Mirrors the design
  * prototype's behavior; persistence and OMDb lookups go through the server. */
 (function () {
@@ -24,6 +24,7 @@
     results: [],
     form: blankForm(),
     saving: false,
+    duplicateWarning: null,
     imgBroken: new Set(),
   };
 
@@ -62,7 +63,15 @@
       var ct = res.headers.get('content-type') || '';
       var body = ct.indexOf('application/json') >= 0 ? res.json() : res.text();
       return body.then(function (data) {
-        if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status));
+        if (!res.ok) {
+          var err = new Error((data && data.error) || ('HTTP ' + res.status));
+          err.status = res.status;
+          if (data) {
+            if (data.code) err.code = data.code;
+            err.data = data;
+          }
+          throw err;
+        }
         return data;
       });
     });
@@ -141,7 +150,7 @@
           '<circle cx="12" cy="12" r="2.6" fill="#e7b34c"/>' +
           '<circle cx="12" cy="12" r="0.9" fill="#0a0a0d"/>' +
         '</svg>' +
-        '<div><div class="brand-mark">STACKS</div><div class="brand-sub">Physical Media Library</div></div>' +
+        '<div><div class="brand-mark">STACKS</div><div class="brand-sub">Media Library</div></div>' +
       '</div>' +
       '<div class="header-right">' +
         '<div class="stats">' +
@@ -516,6 +525,18 @@
 
   function detailsStepHTML() {
     var f = state.form;
+    var dw = state.duplicateWarning;
+    var dupWarn = dw
+      ? '<div class="dup-warn">' +
+          '<div class="dup-warn-msg">' + escapeHtml(dw.message) +
+            (dw.id ? ' <button class="dup-warn-link" data-action="dup-view" data-id="' + escapeHtml(dw.id) + '">View "' + escapeHtml(dw.title || 'existing disc') + '"</button>' : '') +
+          '</div>' +
+          '<div class="dup-warn-actions">' +
+            '<button class="btn-neutral" data-action="dup-change">Change title</button>' +
+            '<button class="btn-neutral" data-action="dup-cancel">Cancel</button>' +
+          '</div>' +
+        '</div>'
+      : '';
     var hasMeta = !!(f.director || f.cast);
     var metaStrip = hasMeta
       ? '<div class="meta-strip">' +
@@ -535,7 +556,7 @@
         '<span class="fmt-opt-dot ' + dotCls + '"></span><span class="fmt-opt-text">' + label + '</span></button>';
     };
 
-    return '<div class="step">' + metaStrip +
+    return '<div class="step">' + dupWarn + metaStrip +
       '<div class="field-grid grid-title-year">' +
         field('Title', 'title', f.title, 'Movie title') +
         field('Year', 'year', f.year, '2024') +
@@ -588,7 +609,9 @@
     state.addOpen = true; state.editId = null; state.step = 'search';
     state.form = blankForm(); state.results = []; state.searchQuery = '';
     state.searchType = 'movie';
-    state.searched = false; state.searchError = ''; renderModals();
+    state.searched = false; state.searchError = '';
+    state.duplicateWarning = null;
+    renderModals();
     var input = document.getElementById('omdbSearch');
     if (input) input.focus();
   }
@@ -603,7 +626,10 @@
     var top = card.getBoundingClientRect().top + window.scrollY - offset;
     window.scrollTo({ top: top, behavior: 'smooth' });
   }
-  function closeAdd() { state.addOpen = false; state.editId = null; renderModals(); }
+  function closeAdd() {
+    state.addOpen = false; state.editId = null; state.duplicateWarning = '';
+    renderModals();
+  }
 
   // Preserve whatever the user has typed (uncontrolled input) before re-render.
   function syncSearchQueryFromDom() {
@@ -651,6 +677,7 @@
     var d = state.discs.find(function (x) { return x.id === id; });
     if (!d) return;
     state.addOpen = true; state.editId = id; state.step = 'details'; state.detailId = null;
+    state.duplicateWarning = null;
     state.form = {
       title: d.title, sortTitle: d.sortTitle || '', year: d.year, formats: discFormats(d).slice(), studio: d.studio, distributor: d.distributor,
       ripped: d.ripped, poster: d.hasUpload ? '' : d.poster, director: d.director, cast: d.cast,
@@ -667,7 +694,7 @@
     // modal HTML, which would wipe the <input type="file"> and its selection.
     var fileEl = document.getElementById('formImage');
     var file = fileEl && fileEl.files && fileEl.files[0];
-    state.saving = true; renderModals();
+    state.saving = true; state.duplicateWarning = ''; renderModals();
 
     var fd = new FormData();
     ['title', 'sortTitle', 'year', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
@@ -684,7 +711,20 @@
       state.saving = false; state.addOpen = false; state.editId = null;
       return loadDiscs();
     }).then(renderModals).catch(function (err) {
-      state.saving = false; renderModals();
+      state.saving = false;
+      if (err.code === 'DUPLICATE_TITLE') {
+        var d = err.data || {};
+        state.duplicateWarning = {
+          message: err.message,
+          id: d.duplicateId || '',
+          title: d.duplicateTitle || '',
+        };
+        renderModals();
+        var titleEl = document.querySelector('[data-field="title"]');
+        if (titleEl) { titleEl.focus(); titleEl.select(); }
+        return;
+      }
+      renderModals();
       alert('Could not save: ' + err.message);
     });
   }
@@ -753,6 +793,18 @@
       }
       case 'form-ripped': syncFormFromDom(); state.form.ripped = !state.form.ripped; return renderModals();
       case 'save-form': return saveForm();
+      case 'dup-change': {
+        syncFormFromDom();
+        state.duplicateWarning = null;
+        renderModals();
+        var titleEl = document.querySelector('[data-field="title"]');
+        if (titleEl) { titleEl.focus(); titleEl.select(); }
+        return;
+      }
+      case 'dup-cancel': return closeAdd();
+      case 'dup-view':
+        closeAdd();
+        return openDetail(el.dataset.id);
       case 'az-jump': return jumpToLetter(el.dataset.letter);
     }
   }
