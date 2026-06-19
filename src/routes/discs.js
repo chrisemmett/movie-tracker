@@ -32,6 +32,7 @@ function toDisc(row) {
     code: row.code || genCode(row.format, row.id),
     addedAt: row.created_at ? new Date(row.created_at).getTime() : 0,
     title: row.title || '',
+    sortTitle: row.sort_title || '',
     year: row.year || '',
     format: FORMATS.includes(row.format) ? row.format : 'bluray',
     studio: row.studio || '',
@@ -55,6 +56,7 @@ function bodyToColumns(b) {
   const format = FORMATS.includes(b.format) ? b.format : 'bluray';
   return {
     title: (b.title || '').trim(),
+    sort_title: (b.sortTitle || '').trim() || null,
     year: (b.year || '').trim() || null,
     format,
     studio: (b.studio || '').trim() || null,

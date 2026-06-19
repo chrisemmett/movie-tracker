@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS movies (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   code          VARCHAR(32)  NULL,
   title         VARCHAR(255) NOT NULL,
+  sort_title    VARCHAR(255) NULL,
   studio        VARCHAR(255) NULL,
   distributor   VARCHAR(255) NULL,
   format        VARCHAR(32)  NOT NULL DEFAULT 'bluray',
@@ -64,6 +65,7 @@ const ADDED_COLUMNS = [
   { name: 'code', ddl: "ADD COLUMN code VARCHAR(32) NULL AFTER id" },
   { name: 'ripped', ddl: "ADD COLUMN ripped TINYINT(1) NOT NULL DEFAULT 0 AFTER format" },
   { name: 'ratings', ddl: "ADD COLUMN ratings JSON NULL AFTER imdb_rating" },
+  { name: 'sort_title', ddl: "ADD COLUMN sort_title VARCHAR(255) NULL AFTER title" },
 ];
 
 async function ensureColumns(conn) {

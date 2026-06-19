@@ -30,7 +30,7 @@
 
   // ---------- helpers ----------
   function blankForm() {
-    return { title: '', year: '', format: 'bluray', studio: '', distributor: '', ripped: false,
+    return { title: '', sortTitle: '', year: '', format: 'bluray', studio: '', distributor: '', ripped: false,
       poster: '', director: '', cast: '', plot: '', genre: '', runtime: '', rated: '', ratings: [], imdbID: '' };
   }
   function fmtMeta(f) {
@@ -77,14 +77,19 @@
         .toLowerCase().indexOf(q) >= 0;
     });
     return list.sort(function (a, b) {
-      if (state.sort === 'title') return sortableTitle(a.title).localeCompare(sortableTitle(b.title));
+      if (state.sort === 'title') return sortableTitle(a).localeCompare(sortableTitle(b));
       if (state.sort === 'year') return (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0);
       return (b.addedAt || 0) - (a.addedAt || 0);
     });
   }
 
-  function sortableTitle(t) {
-    return (t || '').replace(/^the\s+/i, '').trim();
+  // A disc sorts by its custom sort title when set (e.g. "Matrix 2" for
+  // "The Matrix Reloaded"), otherwise the regular title with a leading
+  // "The " stripped.
+  function sortableTitle(d) {
+    var custom = d && d.sortTitle ? d.sortTitle.trim() : '';
+    if (custom) return custom;
+    return (d && d.title ? d.title : '').replace(/^the\s+/i, '').trim();
   }
 
   // ---------- shared bits ----------
@@ -160,6 +165,7 @@
         '<div class="segmented">' +
           seg('set-view', 'wall', state.view, '▦ WALL') +
           seg('set-view', 'shelf', state.view, '▥ SHELF') +
+          seg('set-view', 'stats', state.view, '▧ STATS') +
         '</div>' +
       '</div>';
   }
@@ -169,8 +175,9 @@
 
   // ---------- content ----------
   function renderContent() {
-    var cards = filteredSorted();
     var el = document.getElementById('content');
+    if (state.view === 'stats') { el.innerHTML = statsHTML(); return; }
+    var cards = filteredSorted();
     if (cards.length === 0) { el.innerHTML = emptyHTML(); return; }
     el.innerHTML = state.view === 'wall' ? wallHTML(cards) : shelfHTML(cards);
   }
@@ -205,6 +212,133 @@
         '<span class="spine-code">' + escapeHtml(d.code) + '</span>' +
       '</div>';
     }).join('') + '</div></div>';
+  }
+
+  // ---------- stats ----------
+  function parseRuntimeMinutes(s) {
+    var m = /(\d+)\s*min/i.exec(s || '');
+    return m ? parseInt(m[1], 10) : 0;
+  }
+  function parseImdbRating(ratings) {
+    if (!Array.isArray(ratings)) return 0;
+    for (var i = 0; i < ratings.length; i++) {
+      var r = ratings[i];
+      if (/imdb/i.test(r.source || '')) {
+        var m = /([\d.]+)/.exec(r.value || '');
+        if (m) return parseFloat(m[1]);
+      }
+    }
+    return 0;
+  }
+  function tallyTop(items, limit) {
+    var counts = {};
+    items.forEach(function (k) {
+      if (!k) return;
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    var arr = Object.keys(counts).map(function (k) { return { key: k, count: counts[k] }; });
+    arr.sort(function (a, b) {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.key.localeCompare(b.key);
+    });
+    return limit ? arr.slice(0, limit) : arr;
+  }
+  function bars(items, accentByKey) {
+    if (!items.length) return '<div class="stat-empty">No data yet.</div>';
+    var max = items[0].count;
+    return '<ul class="bar-list">' + items.map(function (it) {
+      var pct = max ? Math.round((it.count / max) * 100) : 0;
+      var color = accentByKey ? accentByKey(it.key) : '#e7b34c';
+      return '<li class="bar-row">' +
+        '<span class="bar-label" title="' + escapeHtml(it.key) + '">' + escapeHtml(it.key) + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span>' +
+        '<span class="bar-count">' + it.count + '</span>' +
+      '</li>';
+    }).join('') + '</ul>';
+  }
+
+  function statsHTML() {
+    var discs = state.discs;
+    if (!discs.length) return emptyHTML();
+
+    var total = discs.length;
+    var bluray = discs.filter(function (d) { return d.format === 'bluray'; }).length;
+    var uhd = discs.filter(function (d) { return d.format === 'uhd'; }).length;
+    var ripped = discs.filter(function (d) { return d.ripped; }).length;
+    var notRipped = total - ripped;
+    var rippedPct = total ? Math.round((ripped / total) * 100) : 0;
+
+    var totalRuntime = discs.reduce(function (s, d) { return s + parseRuntimeMinutes(d.runtime); }, 0);
+    var runtimeDays = (totalRuntime / 60 / 24).toFixed(1);
+
+    var imdbScores = discs.map(function (d) { return parseImdbRating(d.ratings); }).filter(function (n) { return n > 0; });
+    var avgImdb = imdbScores.length
+      ? (imdbScores.reduce(function (s, n) { return s + n; }, 0) / imdbScores.length).toFixed(1)
+      : '—';
+
+    // Decades
+    var decadeItems = tallyTop(discs.map(function (d) {
+      var y = parseInt(d.year, 10);
+      if (!y) return '';
+      return (Math.floor(y / 10) * 10) + 's';
+    }));
+    decadeItems.sort(function (a, b) { return a.key.localeCompare(b.key); });
+
+    // Genres (split comma-separated)
+    var allGenres = [];
+    discs.forEach(function (d) {
+      (d.genre || '').split(',').forEach(function (g) {
+        g = g.trim(); if (g) allGenres.push(g);
+      });
+    });
+    var genreItems = tallyTop(allGenres, 10);
+
+    // MPAA ratings
+    var ratedItems = tallyTop(discs.map(function (d) { return (d.rated || '').trim(); }));
+
+    // Top directors / studios
+    var directorItems = tallyTop(discs.map(function (d) { return (d.director || '').trim(); })
+      .filter(function (s) { return s && s !== 'N/A'; }), 10);
+    var studioItems = tallyTop(discs.map(function (d) { return (d.studio || '').trim(); }), 10);
+
+    // Format colors for the by-format bar
+    var formatItems = [
+      { key: 'Blu-ray', count: bluray },
+      { key: '4K UHD', count: uhd },
+    ].sort(function (a, b) { return b.count - a.count; });
+    var formatColor = function (k) { return k === '4K UHD' ? '#e7b34c' : '#4d8df0'; };
+
+    var bigStat = function (num, cap, sub) {
+      return '<div class="big-stat"><div class="big-num">' + num + '</div>' +
+        '<div class="big-cap">' + cap + '</div>' +
+        (sub ? '<div class="big-sub">' + sub + '</div>' : '') + '</div>';
+    };
+
+    var panel = function (title, body) {
+      return '<section class="stats-panel">' +
+        '<h3 class="stats-panel-title">' + title + '</h3>' + body + '</section>';
+    };
+
+    return '<div class="stats-wrap">' +
+      '<div class="big-stats">' +
+        bigStat(total, 'Total discs', '') +
+        bigStat(ripped + ' / ' + total, 'Ripped to Plex', rippedPct + '% of collection') +
+        bigStat(runtimeDays + 'd', 'Total runtime', totalRuntime + ' min across ' + imdbScores.length + ' rated titles') +
+        bigStat(avgImdb, 'Avg IMDb rating', imdbScores.length + ' titles scored') +
+      '</div>' +
+      '<div class="stats-grid">' +
+        panel('By format', bars(formatItems, formatColor)) +
+        panel('Plex status', bars([
+          { key: 'Ripped', count: ripped },
+          { key: 'Not ripped', count: notRipped },
+        ], function (k) { return k === 'Ripped' ? '#e7b34c' : '#4a4843'; })) +
+        panel('By decade', bars(decadeItems)) +
+        panel('Top genres', bars(genreItems)) +
+        panel('MPAA rating', bars(ratedItems)) +
+        panel('Top directors', bars(directorItems)) +
+        panel('Top studios', bars(studioItems)) +
+      '</div>' +
+    '</div>';
   }
 
   // ---------- modals ----------
@@ -336,6 +470,9 @@
         field('Title', 'title', f.title, 'Movie title') +
         field('Year', 'year', f.year, '2024') +
       '</div>' +
+      '<div class="field-grid" style="margin-top:13px;">' +
+        field('Sort title (optional)', 'sortTitle', f.sortTitle, 'e.g. Matrix 2') +
+      '</div>' +
       '<div class="field-grid grid-2">' +
         field('Studio', 'studio', f.studio, 'e.g. Warner Bros.') +
         field('Distributor / Label', 'distributor', f.distributor, 'e.g. Criterion') +
@@ -413,7 +550,7 @@
     state.searching = true; renderModals();
     api('/api/omdb/detail/' + encodeURIComponent(imdbID)).then(function (d) {
       state.form = {
-        title: d.title || (r && r.title) || '', year: (d.year || (r && r.year) || '').slice(0, 4),
+        title: d.title || (r && r.title) || '', sortTitle: '', year: (d.year || (r && r.year) || '').slice(0, 4),
         format: state.form.format, studio: d.studio || '', distributor: '', ripped: false,
         poster: d.poster_url || '', director: d.director || '', cast: d.cast || d.actors || '',
         plot: d.plot || '', genre: d.genre || '', runtime: d.runtime || '', rated: d.rated || '',
@@ -431,7 +568,7 @@
     if (!d) return;
     state.addOpen = true; state.editId = id; state.step = 'details'; state.detailId = null;
     state.form = {
-      title: d.title, year: d.year, format: d.format, studio: d.studio, distributor: d.distributor,
+      title: d.title, sortTitle: d.sortTitle || '', year: d.year, format: d.format, studio: d.studio, distributor: d.distributor,
       ripped: d.ripped, poster: d.hasUpload ? '' : d.poster, director: d.director, cast: d.cast,
       plot: d.plot, genre: d.genre, runtime: d.runtime, rated: d.rated, ratings: d.ratings || [], imdbID: d.imdbID,
     };
@@ -445,7 +582,7 @@
     state.saving = true; renderModals();
 
     var fd = new FormData();
-    ['title', 'year', 'format', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
+    ['title', 'sortTitle', 'year', 'format', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
       .forEach(function (k) { fd.append(k, f[k] || ''); });
     fd.append('ripped', f.ripped ? 'true' : 'false');
     fd.append('poster', f.poster || '');
