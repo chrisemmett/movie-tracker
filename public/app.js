@@ -219,10 +219,12 @@
         '<div class="card-caption">' +
           '<div class="fmt-row">' +
             formatChips(d) +
-            (d.ripped ? plexBadge() : '') +
           '</div>' +
           '<div class="card-title">' + escapeHtml(d.title) + '</div>' +
-          '<div class="card-year">' + escapeHtml(d.year) + '</div>' +
+          '<div class="card-meta-row">' +
+            '<div class="card-year">' + escapeHtml(d.year) + '</div>' +
+            (d.ripped ? plexBadge() : '') +
+          '</div>' +
         '</div></div>';
     }).join('') + '</div>';
   }
