@@ -17,9 +17,10 @@ locally.
   title via OMDB, its poster is **copied to your NAS** too, so cover art keeps
   working even if OMDB is down. Falls back to a generated house-style cover when
   no image exists
-- **OMDB search-and-pick on add**: search by title, choose the match, and details
-  (studio, director, cast, plot, genre, runtime, rating, and review scores) are
-  fetched and saved locally so they don't depend on OMDB later
+- **OMDB search-and-pick on add**: search by title for either a movie or a TV
+  series, choose the match, and details (studio, director, cast, plot, genre,
+  runtime, rating, and review scores) are fetched and saved locally so they
+  don't depend on OMDB later
 - Search, format filtering, and sorting (recently added / title / year)
 - Detail modal with metadata, review-score row, edit, and inline-confirm delete
 
@@ -140,7 +141,7 @@ A single `movies` table. Each row is a disc:
 | PUT | `/api/discs/:id` | update (multipart; optional `image`) |
 | PATCH | `/api/discs/:id/ripped` | set the ripped flag (`{ripped:bool}`) |
 | DELETE | `/api/discs/:id` | delete (also removes its uploaded image) |
-| GET | `/api/omdb/search?q=` | proxied OMDB title search |
+| GET | `/api/omdb/search?q=&type=` | proxied OMDB title search (`type` is `movie` or `series`, default `movie`) |
 | GET | `/api/omdb/detail/:imdbID` | proxied OMDB detail lookup |
 
 ## Configuration
