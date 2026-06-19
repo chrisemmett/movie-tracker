@@ -79,6 +79,7 @@ async function detail(imdbID) {
     writer: clean(d.Writer),
     actors: clean(d.Actors),
     cast: clean(d.Actors),
+    studio: clean(d.Production),
     plot: clean(d.Plot),
     language: clean(d.Language),
     country: clean(d.Country),

@@ -391,7 +391,7 @@
     api('/api/omdb/detail/' + encodeURIComponent(imdbID)).then(function (d) {
       state.form = {
         title: d.title || (r && r.title) || '', year: (d.year || (r && r.year) || '').slice(0, 4),
-        format: state.form.format, studio: '', distributor: '', ripped: false,
+        format: state.form.format, studio: d.studio || '', distributor: '', ripped: false,
         poster: d.poster_url || '', director: d.director || '', cast: d.cast || d.actors || '',
         plot: d.plot || '', genre: d.genre || '', runtime: d.runtime || '', rated: d.rated || '',
         ratings: d.ratings || [], imdbID: d.imdb_id || imdbID,

@@ -20,14 +20,45 @@ const storage = multer.diskStorage({
   },
 });
 
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: MAX_BYTES },
   fileFilter: (req, file, cb) => {
     if (ALLOWED.has(file.mimetype)) return cb(null, true);
     cb(new Error('Only JPEG, PNG, WebP, or GIF images are allowed'));
   },
 });
+
+const EXT_BY_MIME = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+
+// Download a remote image (e.g. an OMDB poster) into the upload dir so the
+// collection isn't dependent on the external host staying up. Returns the
+// stored filename, or null if it can't be fetched/validated (best effort —
+// callers fall back to the remote URL).
+async function downloadImage(url) {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const mime = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!ALLOWED.has(mime)) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!buf.length || buf.length > MAX_BYTES) return null;
+    const ext = EXT_BY_MIME[mime] || '.jpg';
+    const name = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+    await fs.promises.writeFile(path.join(UPLOAD_DIR, name), buf);
+    return name;
+  } catch {
+    return null;
+  }
+}
 
 function removeImage(filename) {
   if (!filename) return;
@@ -36,4 +67,4 @@ function removeImage(filename) {
     .catch(() => {}); // best effort — don't fail the request on cleanup
 }
 
-module.exports = { upload, removeImage, UPLOAD_DIR };
+module.exports = { upload, removeImage, downloadImage, UPLOAD_DIR };
