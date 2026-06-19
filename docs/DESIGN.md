@@ -269,13 +269,17 @@ The whole frontend is one IIFE with no framework. Key pieces:
 - **Poster fallback**: if a `<img>` fires `error`, a deterministic
   house-style cover (hue derived from the title hash) is rendered in its
   place.
-- **A–Z jump index**: when the wall view is sorted by title, a sticky
-  `#`–`Z` column is rendered to the right of the grid. Letters with no
-  matching disc are dimmed; clicking an active letter scrolls the page so
-  the first card whose sortable title starts with it sits just below the
-  sticky header. Cards carry a `data-letter` attribute so the jump can use
-  a simple `querySelector`. The index is hidden for year / recently-added
-  sorts because first letters no longer correlate with row order.
+- **A–Z jump index**: when the wall view is sorted by title, a `#`–`Z`
+  column is rendered to the right of the grid. It uses `position: fixed`
+  so it stays anchored at the right edge of the centred page wrap and
+  doesn't scroll away when the user reaches the bottom of the list; the
+  wall reserves a right-side gutter so cards don't slide under it.
+  Letters with no matching disc are dimmed; clicking an active letter
+  scrolls the page so the first card whose sortable title starts with it
+  sits just below the sticky header. Cards carry a `data-letter`
+  attribute so the jump can use a simple `querySelector`. The index is
+  hidden for year / recently-added sorts because first letters no longer
+  correlate with row order.
 - **Add modal autofocus**: opening the Add Disc modal focuses the OMDb
   search field immediately so the user can start typing without clicking.
 
