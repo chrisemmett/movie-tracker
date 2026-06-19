@@ -97,7 +97,7 @@
       '<div class="house-code">' + escapeHtml(code) + '</div></div>';
   }
   function plexBadge() {
-    return '<div class="plex-badge"><span class="tri">▶</span><span class="txt">PLEX</span></div>';
+    return '<span class="plex-badge"><span class="tri">▶</span><span class="txt">PLEX</span></span>';
   }
   function posterOrHouse(d, variant) {
     var showPoster = d.poster && !state.imgBroken.has(d.poster);
@@ -184,9 +184,11 @@
       var m = fmtMeta(d.format);
       return '<div class="card" style="--accent:' + m.color + '" data-action="open-detail" data-id="' + d.id + '">' +
         posterOrHouse(d, 'card') +
-        (d.ripped ? plexBadge() : '') +
         '<div class="card-caption">' +
-          '<div class="fmt-row"><span class="fmt-dot"></span><span class="fmt-label">' + m.label + '</span></div>' +
+          '<div class="fmt-row">' +
+            '<span class="fmt-chip"><span class="fmt-dot"></span><span class="fmt-label">' + m.label + '</span></span>' +
+            (d.ripped ? plexBadge() : '') +
+          '</div>' +
           '<div class="card-title">' + escapeHtml(d.title) + '</div>' +
           '<div class="card-year">' + escapeHtml(d.year) + '</div>' +
         '</div></div>';
