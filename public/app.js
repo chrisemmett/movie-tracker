@@ -531,10 +531,6 @@
           '<div class="dup-warn-msg">' + escapeHtml(dw.message) +
             (dw.id ? ' <button class="dup-warn-link" data-action="dup-view" data-id="' + escapeHtml(dw.id) + '">View "' + escapeHtml(dw.title || 'existing disc') + '"</button>' : '') +
           '</div>' +
-          '<div class="dup-warn-actions">' +
-            '<button class="btn-neutral" data-action="dup-change">Change title</button>' +
-            '<button class="btn-neutral" data-action="dup-cancel">Cancel</button>' +
-          '</div>' +
         '</div>'
       : '';
     var hasMeta = !!(f.director || f.cast);
@@ -793,15 +789,6 @@
       }
       case 'form-ripped': syncFormFromDom(); state.form.ripped = !state.form.ripped; return renderModals();
       case 'save-form': return saveForm();
-      case 'dup-change': {
-        syncFormFromDom();
-        state.duplicateWarning = null;
-        renderModals();
-        var titleEl = document.querySelector('[data-field="title"]');
-        if (titleEl) { titleEl.focus(); titleEl.select(); }
-        return;
-      }
-      case 'dup-cancel': return closeAdd();
       case 'dup-view':
         closeAdd();
         return openDetail(el.dataset.id);

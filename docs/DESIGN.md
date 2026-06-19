@@ -295,14 +295,14 @@ The whole frontend is one IIFE with no framework. Key pieces:
 - **Add modal autofocus**: opening the Add Disc modal focuses the OMDb
   search field immediately so the user can start typing without clicking.
 - **Duplicate-title guard**: when a save returns `409 DUPLICATE_TITLE`,
-  the details form stays open and renders a red inline warning above the
-  fields with a `View "<existing>"` link (closes the add modal and opens
-  the detail modal for the matching disc), plus `Change title` (clears
-  the warning and focuses the title input) and `Cancel` (closes the
-  modal) buttons. `state.duplicateWarning` holds `{ message, id, title }`
-  and is cleared on open/close/save. `api()` attaches the full parsed
-  error body as `err.data` so the handler can read `duplicateId` /
-  `duplicateTitle`.
+  the details form stays open, the title input is focused and selected,
+  and a red inline warning is rendered above the fields with a
+  `View "<existing>"` link that closes the add modal and opens the
+  matching disc. The user edits the title in place to clear it, or
+  closes the modal via the ✕ / Escape. `state.duplicateWarning` holds
+  `{ message, id, title }` and is cleared on open/close/save. `api()`
+  attaches the full parsed error body as `err.data` so the handler can
+  read `duplicateId` / `duplicateTitle`.
 
 ### 6.3 `styles.css`
 
@@ -425,6 +425,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-19 (brand subtitle dropped "Physical"; duplicate-title guard on create/update).*
+*Last revised: 2026-06-19 (duplicate-title warning drops redundant Change title / Cancel buttons; user edits in place or closes the modal).*
 
 

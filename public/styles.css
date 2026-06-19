@@ -283,11 +283,10 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .loading { display: flex; align-items: center; gap: 10px; padding: 24px 0; color: #9b988f; font-family: 'Barlow', sans-serif; font-size: 13px; }
 .spinner { width: 16px; height: 16px; border: 2px solid rgba(231,179,76,0.3); border-top-color: #e7b34c; border-radius: 50%; display: inline-block; animation: spin .7s linear infinite; }
 .err-msg { margin-top: 14px; font-family: 'Barlow', sans-serif; font-size: 13px; color: #d8483f; }
-.dup-warn { background: rgba(216,72,63,0.08); border: 1px solid rgba(216,72,63,0.45); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.dup-warn { background: rgba(216,72,63,0.08); border: 1px solid rgba(216,72,63,0.45); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
 .dup-warn-msg { font-family: 'Barlow', sans-serif; font-size: 13px; color: #f0b8b3; }
 .dup-warn-link { background: none; border: none; padding: 0; margin-left: 4px; color: #e7b34c; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .dup-warn-link:hover { color: #f0c876; }
-.dup-warn-actions { display: flex; gap: 8px; }
 .muted-msg { margin-top: 14px; font-family: 'Barlow', sans-serif; font-size: 13px; color: #9b988f; }
 .results { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; max-height: 300px; overflow: auto; }
 .result-btn { display: flex; align-items: center; gap: 13px; text-align: left; background: #0e0e12; border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; padding: 8px; cursor: pointer; transition: border-color .14s ease, background .14s ease; }
