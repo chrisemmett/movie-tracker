@@ -6,8 +6,8 @@
 
 services:
   app:
+    image: ghcr.io/chrisemmett/movie-tracker:latest
     build: .
-    image: movie-tracker:latest
     restart: unless-stopped
     depends_on:
       db:
