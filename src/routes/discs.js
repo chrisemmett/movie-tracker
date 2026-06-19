@@ -37,6 +37,19 @@ function parseFormats(raw, fallback) {
   return out;
 }
 
+// Look up a row whose title matches `title` case-insensitively (trimmed).
+// `excludeId` lets the edit flow ignore the row being saved.
+async function findByTitle(title, excludeId) {
+  const needle = String(title || '').trim().toLowerCase();
+  if (!needle) return null;
+  const sql = excludeId
+    ? 'SELECT id, title FROM movies WHERE LOWER(TRIM(title)) = ? AND id != ? LIMIT 1'
+    : 'SELECT id, title FROM movies WHERE LOWER(TRIM(title)) = ? LIMIT 1';
+  const params = excludeId ? [needle, excludeId] : [needle];
+  const [rows] = await getPool().query(sql, params);
+  return rows[0] || null;
+}
+
 function parseRatings(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
@@ -155,6 +168,14 @@ router.post('/api/discs', upload.single('image'), async (req, res, next) => {
       if (req.file) removeImage(req.file.filename);
       return res.status(400).json({ error: 'Title is required.' });
     }
+    const dup = await findByTitle(data.title);
+    if (dup) {
+      if (req.file) removeImage(req.file.filename);
+      return res.status(409).json({
+        error: `A disc titled "${dup.title}" is already in your collection.`,
+        code: 'DUPLICATE_TITLE',
+      });
+    }
     // An uploaded file wins; otherwise copy the OMDB poster locally so we're
     // not reliant on the external host.
     if (req.file) {
@@ -191,6 +212,14 @@ router.put('/api/discs/:id', upload.single('image'), async (req, res, next) => {
     if (!data.title) {
       if (req.file) removeImage(req.file.filename);
       return res.status(400).json({ error: 'Title is required.' });
+    }
+    const dup = await findByTitle(data.title, req.params.id);
+    if (dup) {
+      if (req.file) removeImage(req.file.filename);
+      return res.status(409).json({
+        error: `A disc titled "${dup.title}" is already in your collection.`,
+        code: 'DUPLICATE_TITLE',
+      });
     }
     // New upload replaces the cover; otherwise, if there's no local image yet,
     // copy the OMDB poster locally so old discs migrate off the external host.
