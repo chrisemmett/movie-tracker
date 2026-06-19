@@ -16,17 +16,28 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
   background: radial-gradient(140% 90% at 50% -10%, #16161d 0%, #0a0a0d 55%);
   color: #f2f0ea;
   font-family: 'Barlow', sans-serif;
-  padding: 26px 30px 80px;
+  padding: 0 30px 80px;
 }
 .wrap { max-width: 1500px; margin: 0 auto; }
 
 .mono { font-family: 'Space Mono', monospace; }
 .cond { font-family: 'Barlow Condensed', sans-serif; }
 
+/* ---------- Site header (sticky) ---------- */
+.site-header {
+  position: sticky; top: 0; z-index: 40;
+  margin: 0 -30px 22px;
+  padding: 26px 30px 0;
+  background: rgba(10,10,13,0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
 /* ---------- Header ---------- */
 .header {
   display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 24px; flex-wrap: wrap; max-width: 1500px; margin: 0 auto 22px;
+  gap: 24px; flex-wrap: wrap; max-width: 1500px; margin: 0 auto 18px;
 }
 .brand { display: flex; align-items: center; gap: 14px; }
 .brand-mark {
@@ -64,7 +75,7 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 /* ---------- Toolbar ---------- */
 .toolbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  max-width: 1500px; margin: 0 auto 26px; padding-top: 18px;
+  max-width: 1500px; margin: 0 auto; padding: 16px 0;
   border-top: 1px solid rgba(255,255,255,0.07);
 }
 .search { position: relative; flex: 1; min-width: 220px; max-width: 360px; }
