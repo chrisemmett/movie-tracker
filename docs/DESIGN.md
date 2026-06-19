@@ -244,8 +244,9 @@ Condensed, Barlow, Space Mono) and `styles.css`, exposes a single
 The whole frontend is one IIFE with no framework. Key pieces:
 
 - **State tree** (single object): `discs`, `view` (`wall` | `shelf` |
-  `stats`), `query`, `fmt` (format filter), `sort`, `detailId`, `addOpen`,
-  `editId`, plus form/search sub-states.
+  `stats`), `query`, `fmt` (format filter), `plex` (Plex-status filter:
+  `all` | `plex` | `not-plex`), `sort`, `detailId`, `addOpen`, `editId`,
+  plus form/search sub-states.
 - **Rendering**: pure functions per region — `renderHeader()`,
   `renderToolbar()`, `renderContent()`, `renderModals()` — that build HTML
   strings and assign them via `innerHTML`. Re-renders happen by calling
