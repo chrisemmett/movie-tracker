@@ -156,7 +156,8 @@ Internal helpers in this module:
 - `bodyToColumns(req.body)` — turns a multipart form body into a column-map
   for INSERT / UPDATE.
 - `parseFormats(raw)` — normalises the `formats` array (dedup, whitelist
-  against known formats, fallback to `bluray`).
+  against known formats, alphabetical sort so tags display uniformly,
+  fallback to `bluray`).
 - Catalog code minting: on insert, if no `code` is provided, generate one
   from the primary format (`BD`, `UHD`, `ATV`) plus a zero-padded sequence
   (`BD 044`, `UHD 012`). Codes are preserved on update.
@@ -367,7 +368,9 @@ Buildx with `type=gha` cache. No tests run in CI (there are none).
   an optional `image` part. PATCH/DELETE/GET use JSON.
 - **`format` vs `formats`.** Single primary format string + JSON array of all
   formats owned. Always keep them in sync; `parseFormats()` is the
-  normaliser.
+  normaliser. The array is stored and returned alphabetically sorted, so the
+  primary format is the alphabetically-first owned format (e.g. a Blu-ray +
+  UHD title shows `bluray` as primary and accents with the blue colour).
 - **Posters.** `/uploads/<image_file>` if uploaded; otherwise `poster_url`;
   otherwise the client renders a generated cover. The backend prefers a
   local copy of OMDB posters and downloads them on add.
@@ -401,6 +404,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-19.*
+*Last revised: 2026-06-19 (format tags now stored/displayed alphabetically).*
 
 

@@ -15,8 +15,10 @@ function genCode(format, n) {
   return (CODE_PREFIX[format] || 'BD') + ' ' + String(n).padStart(3, '0');
 }
 
-// Normalize whatever the DB / client gave us into a deduped, ordered list of
-// known format tokens. Falls back to ['bluray'] so a row is never formatless.
+// Normalize whatever the DB / client gave us into a deduped, alphabetically
+// sorted list of known format tokens, so the UI shows tags in a uniform order
+// regardless of the order the user clicked them. Falls back to ['bluray'] so a
+// row is never formatless.
 function parseFormats(raw, fallback) {
   let list;
   if (Array.isArray(raw)) list = raw;
@@ -30,7 +32,9 @@ function parseFormats(raw, fallback) {
     if (FORMATS.includes(f) && !seen.has(f)) { seen.add(f); out.push(f); }
   }
   if (!out.length && fallback && FORMATS.includes(fallback)) out.push(fallback);
-  return out.length ? out : ['bluray'];
+  if (!out.length) out.push('bluray');
+  out.sort();
+  return out;
 }
 
 function parseRatings(raw) {
