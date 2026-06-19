@@ -103,7 +103,6 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
   position: absolute; right: -8%; bottom: 4%; font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700; font-size: 235px; line-height: 0.66; opacity: 0.55;
 }
-.house-code { position: absolute; top: 12px; left: 12px; font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.14em; color: rgba(255,255,255,0.42); }
 .plex-badge {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(231,179,76,0.45);
@@ -141,14 +140,12 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 }
 .spine:hover { transform: translateY(-12px); box-shadow: 0 24px 40px rgba(0,0,0,0.62); }
 .spine::after { content: ''; position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); width: 78%; height: 14px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.55), rgba(0,0,0,0) 72%); }
-.spine-short { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.08em; color: var(--accent); }
 .spine-title {
   writing-mode: vertical-rl; transform: rotate(180deg); font-family: 'Barlow Condensed', sans-serif;
   font-weight: 600; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; color: #e9e6df;
   flex: 1; display: flex; align-items: center; justify-content: center; padding: 8px 0; overflow: hidden; white-space: nowrap;
 }
 .spine-tri { color: #e7b34c; font-size: 9px; line-height: 0; }
-.spine-code { font-family: 'Space Mono', monospace; font-size: 7px; letter-spacing: 0.05em; color: rgba(255,255,255,0.34); writing-mode: vertical-rl; transform: rotate(180deg); }
 
 /* ---------- Stats ---------- */
 .stats-wrap { display: flex; flex-direction: column; gap: 22px; }
@@ -208,14 +205,12 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 /* Detail */
 .detail-cover { flex: 0 0 312px; position: relative; background: #0b0b0f; align-self: stretch; min-height: 440px; }
 .detail-cover .house-initial { right: -10%; bottom: 2%; font-size: 330px; line-height: 0.64; opacity: 0.5; }
-.detail-cover .house-code { top: 18px; left: 18px; font-size: 11px; color: rgba(255,255,255,0.5); }
 .detail-body { flex: 1; min-width: 0; padding: 30px 32px 28px; overflow: auto; position: relative; }
 .detail-body .close-btn { position: absolute; top: 18px; right: 18px; }
 .chip-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 5px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .chip-dot { width: 7px; height: 7px; border-radius: 2px; background: var(--accent); }
 .chip-label { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: var(--accent); }
-.detail-code { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: #6c6a64; }
 .detail-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 36px; line-height: 0.98; letter-spacing: 0.01em; text-transform: uppercase; color: #f6f4ee; padding-right: 40px; }
 .meta-line { font-family: 'Space Mono', monospace; font-size: 12px; color: #9b988f; margin-top: 8px; }
 .genre-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
