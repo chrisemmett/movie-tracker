@@ -76,10 +76,14 @@
         .toLowerCase().indexOf(q) >= 0;
     });
     return list.sort(function (a, b) {
-      if (state.sort === 'title') return a.title.localeCompare(b.title);
+      if (state.sort === 'title') return sortableTitle(a.title).localeCompare(sortableTitle(b.title));
       if (state.sort === 'year') return (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0);
       return (b.addedAt || 0) - (a.addedAt || 0);
     });
+  }
+
+  function sortableTitle(t) {
+    return (t || '').replace(/^the\s+/i, '').trim();
   }
 
   // ---------- shared bits ----------
