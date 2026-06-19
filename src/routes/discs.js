@@ -5,12 +5,32 @@ const { upload, removeImage, downloadImage } = require('../upload');
 
 const router = express.Router();
 
-const FORMATS = ['bluray', 'uhd'];
+const FORMATS = ['bluray', 'uhd', 'appletv'];
 // OMDB title-search types we expose to the client.
 const SEARCH_TYPES = ['movie', 'series'];
 
+const CODE_PREFIX = { bluray: 'BD', uhd: 'UHD', appletv: 'ATV' };
+
 function genCode(format, n) {
-  return (format === 'uhd' ? 'UHD' : 'BD') + ' ' + String(n).padStart(3, '0');
+  return (CODE_PREFIX[format] || 'BD') + ' ' + String(n).padStart(3, '0');
+}
+
+// Normalize whatever the DB / client gave us into a deduped, ordered list of
+// known format tokens. Falls back to ['bluray'] so a row is never formatless.
+function parseFormats(raw, fallback) {
+  let list;
+  if (Array.isArray(raw)) list = raw;
+  else if (typeof raw === 'string' && raw) {
+    try { const v = JSON.parse(raw); list = Array.isArray(v) ? v : [raw]; }
+    catch { list = [raw]; }
+  } else list = [];
+  const seen = new Set();
+  const out = [];
+  for (const f of list) {
+    if (FORMATS.includes(f) && !seen.has(f)) { seen.add(f); out.push(f); }
+  }
+  if (!out.length && fallback && FORMATS.includes(fallback)) out.push(fallback);
+  return out.length ? out : ['bluray'];
 }
 
 function parseRatings(raw) {
@@ -27,13 +47,16 @@ function parseRatings(raw) {
 // Map a DB row to the disc shape the frontend expects.
 function toDisc(row) {
   const poster = row.image_file ? `/uploads/${row.image_file}` : (row.poster_url || '');
+  const formats = parseFormats(row.formats, row.format);
   return {
     id: String(row.id),
-    code: row.code || genCode(row.format, row.id),
+    code: row.code || genCode(formats[0], row.id),
     addedAt: row.created_at ? new Date(row.created_at).getTime() : 0,
     title: row.title || '',
+    sortTitle: row.sort_title || '',
     year: row.year || '',
-    format: FORMATS.includes(row.format) ? row.format : 'bluray',
+    format: formats[0],
+    formats,
     studio: row.studio || '',
     distributor: row.distributor || '',
     ripped: !!row.ripped,
@@ -52,11 +75,20 @@ function toDisc(row) {
 
 // Build the column map written on create/update from a multipart body.
 function bodyToColumns(b) {
-  const format = FORMATS.includes(b.format) ? b.format : 'bluray';
+  // Multer parses repeated `formats` keys into an array; a JSON-string
+  // `formats` value or a single `format` value also flow through here.
+  let raw = b.formats;
+  if (typeof raw === 'string') {
+    try { const v = JSON.parse(raw); if (Array.isArray(v)) raw = v; else raw = [raw]; }
+    catch { raw = [raw]; }
+  }
+  const formats = parseFormats(raw, b.format);
   return {
     title: (b.title || '').trim(),
+    sort_title: (b.sortTitle || '').trim() || null,
     year: (b.year || '').trim() || null,
-    format,
+    format: formats[0],
+    formats: JSON.stringify(formats),
     studio: (b.studio || '').trim() || null,
     distributor: (b.distributor || '').trim() || null,
     ripped: b.ripped === 'true' || b.ripped === '1' || b.ripped === true ? 1 : 0,
