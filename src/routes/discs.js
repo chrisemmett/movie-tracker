@@ -37,17 +37,27 @@ function parseFormats(raw, fallback) {
   return out;
 }
 
-// Look up a row whose title matches `title` case-insensitively (trimmed).
-// `excludeId` lets the edit flow ignore the row being saved.
-async function findByTitle(title, excludeId) {
+// Look up a row whose title AND year both match (case-insensitive, trimmed).
+// A blank year matches another blank year but not a populated one, so two
+// releases of the same title in different years can coexist. `excludeId` lets
+// the edit flow ignore the row being saved.
+async function findByTitleAndYear(title, year, excludeId) {
   const needle = String(title || '').trim().toLowerCase();
   if (!needle) return null;
+  const needleYear = String(year || '').trim();
+  const where = "LOWER(TRIM(title)) = ? AND IFNULL(TRIM(year), '') = ?";
   const sql = excludeId
-    ? 'SELECT id, title FROM movies WHERE LOWER(TRIM(title)) = ? AND id != ? LIMIT 1'
-    : 'SELECT id, title FROM movies WHERE LOWER(TRIM(title)) = ? LIMIT 1';
-  const params = excludeId ? [needle, excludeId] : [needle];
+    ? `SELECT id, title, year FROM movies WHERE ${where} AND id != ? LIMIT 1`
+    : `SELECT id, title, year FROM movies WHERE ${where} LIMIT 1`;
+  const params = excludeId ? [needle, needleYear, excludeId] : [needle, needleYear];
   const [rows] = await getPool().query(sql, params);
   return rows[0] || null;
+}
+
+function dupMessage(dup) {
+  const year = dup.year ? String(dup.year).trim() : '';
+  const suffix = year ? ` (${year})` : '';
+  return `A disc titled "${dup.title}"${suffix} is already in your collection.`;
 }
 
 function parseRatings(raw) {
@@ -168,11 +178,11 @@ router.post('/api/discs', upload.single('image'), async (req, res, next) => {
       if (req.file) removeImage(req.file.filename);
       return res.status(400).json({ error: 'Title is required.' });
     }
-    const dup = await findByTitle(data.title);
+    const dup = await findByTitleAndYear(data.title, data.year);
     if (dup) {
       if (req.file) removeImage(req.file.filename);
       return res.status(409).json({
-        error: `A disc titled "${dup.title}" is already in your collection.`,
+        error: dupMessage(dup),
         code: 'DUPLICATE_TITLE',
         duplicateId: String(dup.id),
         duplicateTitle: dup.title,
@@ -215,11 +225,11 @@ router.put('/api/discs/:id', upload.single('image'), async (req, res, next) => {
       if (req.file) removeImage(req.file.filename);
       return res.status(400).json({ error: 'Title is required.' });
     }
-    const dup = await findByTitle(data.title, req.params.id);
+    const dup = await findByTitleAndYear(data.title, data.year, req.params.id);
     if (dup) {
       if (req.file) removeImage(req.file.filename);
       return res.status(409).json({
-        error: `A disc titled "${dup.title}" is already in your collection.`,
+        error: dupMessage(dup),
         code: 'DUPLICATE_TITLE',
         duplicateId: String(dup.id),
         duplicateTitle: dup.title,

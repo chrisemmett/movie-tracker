@@ -162,12 +162,15 @@ Internal helpers in this module:
 - Catalog code minting: on insert, if no `code` is provided, generate one
   from the primary format (`BD`, `UHD`, `ATV`) plus a zero-padded sequence
   (`BD 044`, `UHD 012`). Codes are preserved on update.
-- `findByTitle(title, excludeId)` — case-insensitive, trimmed lookup of an
-  existing row by title. POST and PUT call this before writing and reject
-  duplicates with HTTP `409` and `{ error, code: 'DUPLICATE_TITLE',
-  duplicateId, duplicateTitle }`; PUT passes the current row's id so
-  editing a disc without changing its title is not treated as a duplicate.
-  The client uses `duplicateId` to link from the warning straight to the
+- `findByTitleAndYear(title, year, excludeId)` — case-insensitive, trimmed
+  lookup of an existing row whose title AND year both match. A blank year
+  matches another blank year but not a populated one, so two releases of
+  the same title in different years (e.g. an original and a remake) can
+  coexist. POST and PUT call this before writing and reject duplicates
+  with HTTP `409` and `{ error, code: 'DUPLICATE_TITLE', duplicateId,
+  duplicateTitle }`; PUT passes the current row's id so editing a disc
+  without changing its title or year is not treated as a duplicate. The
+  client uses `duplicateId` to link from the warning straight to the
   existing disc.
 
 Errors thrown from handlers receive HTTP status from `err.status`; the global
@@ -425,6 +428,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-19 (duplicate-title warning drops redundant Change title / Cancel buttons; user edits in place or closes the modal).*
+*Last revised: 2026-06-19 (duplicate check now requires identical title AND year, so different-year releases of the same title can coexist).*
 
 
