@@ -51,17 +51,50 @@ lookups are proxied through the app.
 
 4. Open `http://<your-nas-ip>:3000`.
 
-### Where data lives
+### Where data lives (and how to not lose it)
 
-By default both volumes are bind-mounted under `./data`:
+Both the database and your uploaded cover images live in **named Docker
+volumes**, managed by Docker and stored under its data root on the NAS:
 
-| What            | Container path      | Host path (edit in `docker-compose.yml`) |
-| --------------- | ------------------- | ---------------------------------------- |
-| Cover images    | `/data/uploads`     | `./data/uploads`                         |
-| MySQL data      | `/var/lib/mysql`    | `./data/mysql`                           |
+| What         | Container path   | Named volume    |
+| ------------ | ---------------- | --------------- |
+| MySQL data   | `/var/lib/mysql` | `db_data`       |
+| Cover images | `/data/uploads`  | `uploads_data`  |
 
-To store these on a specific NAS share, change the left-hand side of those
-volume mappings to an absolute path, e.g. `/volume1/docker/stacks/uploads:/data/uploads`.
+These **survive** `docker compose up -d --build`, `docker compose restart`, and
+`docker compose down`. The only things that delete them are explicit:
+
+> ⚠️ **`docker compose down -v`** (the `-v`/`--volumes` flag) and
+> `docker volume rm` **erase your collection.** Use plain `docker compose down`
+> to stop the stack.
+
+Take a snapshot any time with the backup helper below — that's the durable copy
+you can keep off the NAS or in source control of your own.
+
+> Upgrading from an earlier version that used `./data`? Your data was in
+> `./data/mysql` and `./data/uploads`. After switching to named volumes those
+> folders are no longer used; once you've confirmed the new setup works you can
+> delete the old `./data` directory.
+
+## Backup & restore
+
+Two helper scripts (run the stack first with `docker compose up -d`):
+
+```bash
+# Snapshot DB + cover images to backups/<timestamp>/
+./scripts/backup.sh
+
+# Restore a snapshot (prompts before overwriting current data)
+./scripts/restore.sh backups/20260619-120000
+```
+
+`backup.sh` writes a logical `db.sql` dump (via `mysqldump`) plus a
+`uploads.tar.gz` of your cover art. Keep the `backups/` folder somewhere safe —
+it's git-ignored, so it won't be committed. For a one-off manual DB dump:
+
+```bash
+docker compose exec -T db mysqldump -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > db.sql
+```
 
 ## Running locally without Docker
 
