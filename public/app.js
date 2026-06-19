@@ -24,7 +24,7 @@
     results: [],
     form: blankForm(),
     saving: false,
-    duplicateWarning: '',
+    duplicateWarning: null,
     imgBroken: new Set(),
   };
 
@@ -66,7 +66,10 @@
         if (!res.ok) {
           var err = new Error((data && data.error) || ('HTTP ' + res.status));
           err.status = res.status;
-          if (data && data.code) err.code = data.code;
+          if (data) {
+            if (data.code) err.code = data.code;
+            err.data = data;
+          }
           throw err;
         }
         return data;
@@ -522,9 +525,12 @@
 
   function detailsStepHTML() {
     var f = state.form;
-    var dupWarn = state.duplicateWarning
+    var dw = state.duplicateWarning;
+    var dupWarn = dw
       ? '<div class="dup-warn">' +
-          '<div class="dup-warn-msg">' + escapeHtml(state.duplicateWarning) + '</div>' +
+          '<div class="dup-warn-msg">' + escapeHtml(dw.message) +
+            (dw.id ? ' <button class="dup-warn-link" data-action="dup-view" data-id="' + escapeHtml(dw.id) + '">View "' + escapeHtml(dw.title || 'existing disc') + '"</button>' : '') +
+          '</div>' +
           '<div class="dup-warn-actions">' +
             '<button class="btn-neutral" data-action="dup-change">Change title</button>' +
             '<button class="btn-neutral" data-action="dup-cancel">Cancel</button>' +
@@ -604,7 +610,7 @@
     state.form = blankForm(); state.results = []; state.searchQuery = '';
     state.searchType = 'movie';
     state.searched = false; state.searchError = '';
-    state.duplicateWarning = '';
+    state.duplicateWarning = null;
     renderModals();
     var input = document.getElementById('omdbSearch');
     if (input) input.focus();
@@ -671,7 +677,7 @@
     var d = state.discs.find(function (x) { return x.id === id; });
     if (!d) return;
     state.addOpen = true; state.editId = id; state.step = 'details'; state.detailId = null;
-    state.duplicateWarning = '';
+    state.duplicateWarning = null;
     state.form = {
       title: d.title, sortTitle: d.sortTitle || '', year: d.year, formats: discFormats(d).slice(), studio: d.studio, distributor: d.distributor,
       ripped: d.ripped, poster: d.hasUpload ? '' : d.poster, director: d.director, cast: d.cast,
@@ -707,7 +713,12 @@
     }).then(renderModals).catch(function (err) {
       state.saving = false;
       if (err.code === 'DUPLICATE_TITLE') {
-        state.duplicateWarning = err.message;
+        var d = err.data || {};
+        state.duplicateWarning = {
+          message: err.message,
+          id: d.duplicateId || '',
+          title: d.duplicateTitle || '',
+        };
         renderModals();
         var titleEl = document.querySelector('[data-field="title"]');
         if (titleEl) { titleEl.focus(); titleEl.select(); }
@@ -784,13 +795,16 @@
       case 'save-form': return saveForm();
       case 'dup-change': {
         syncFormFromDom();
-        state.duplicateWarning = '';
+        state.duplicateWarning = null;
         renderModals();
         var titleEl = document.querySelector('[data-field="title"]');
         if (titleEl) { titleEl.focus(); titleEl.select(); }
         return;
       }
       case 'dup-cancel': return closeAdd();
+      case 'dup-view':
+        closeAdd();
+        return openDetail(el.dataset.id);
       case 'az-jump': return jumpToLetter(el.dataset.letter);
     }
   }

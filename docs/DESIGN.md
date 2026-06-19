@@ -164,9 +164,11 @@ Internal helpers in this module:
   (`BD 044`, `UHD 012`). Codes are preserved on update.
 - `findByTitle(title, excludeId)` — case-insensitive, trimmed lookup of an
   existing row by title. POST and PUT call this before writing and reject
-  duplicates with HTTP `409` and `{ error, code: 'DUPLICATE_TITLE' }`; PUT
-  passes the current row's id so editing a disc without changing its title
-  is not treated as a duplicate.
+  duplicates with HTTP `409` and `{ error, code: 'DUPLICATE_TITLE',
+  duplicateId, duplicateTitle }`; PUT passes the current row's id so
+  editing a disc without changing its title is not treated as a duplicate.
+  The client uses `duplicateId` to link from the warning straight to the
+  existing disc.
 
 Errors thrown from handlers receive HTTP status from `err.status`; the global
 handler in `server.js` JSON-encodes them.
@@ -294,9 +296,13 @@ The whole frontend is one IIFE with no framework. Key pieces:
   search field immediately so the user can start typing without clicking.
 - **Duplicate-title guard**: when a save returns `409 DUPLICATE_TITLE`,
   the details form stays open and renders a red inline warning above the
-  fields with `Change title` (clears the warning and focuses the title
-  input) and `Cancel` (closes the modal) buttons. The flag lives in
-  `state.duplicateWarning` and is cleared on open/close/save.
+  fields with a `View "<existing>"` link (closes the add modal and opens
+  the detail modal for the matching disc), plus `Change title` (clears
+  the warning and focuses the title input) and `Cancel` (closes the
+  modal) buttons. `state.duplicateWarning` holds `{ message, id, title }`
+  and is cleared on open/close/save. `api()` attaches the full parsed
+  error body as `err.data` so the handler can read `duplicateId` /
+  `duplicateTitle`.
 
 ### 6.3 `styles.css`
 
@@ -387,10 +393,11 @@ Buildx with `type=gha` cache. No tests run in CI (there are none).
   local copy of OMDB posters and downloads them on add.
 - **Error shape.** Server errors are JSON `{ error: "message" }` with
   appropriate status. Errors that the client needs to branch on also carry
-  a machine-readable `code` (e.g. `DUPLICATE_TITLE`); the client's `api()`
-  helper attaches `err.status` and `err.code` to the thrown `Error` so
-  callers can react. Client throws on `!ok` and surfaces the message in the
-  UI.
+  a machine-readable `code` (e.g. `DUPLICATE_TITLE`) plus any extra fields
+  (e.g. `duplicateId`); the client's `api()` helper attaches `err.status`,
+  `err.code`, and the full parsed body as `err.data` to the thrown
+  `Error` so callers can react. Client throws on `!ok` and surfaces the
+  message in the UI.
 - **No auth, no rate limiting.** Designed for a trusted LAN. Put it behind a
   reverse proxy / VPN if you expose it.
 - **Schema migrations.** Idempotent and additive only. There is no

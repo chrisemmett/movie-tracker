@@ -174,6 +174,8 @@ router.post('/api/discs', upload.single('image'), async (req, res, next) => {
       return res.status(409).json({
         error: `A disc titled "${dup.title}" is already in your collection.`,
         code: 'DUPLICATE_TITLE',
+        duplicateId: String(dup.id),
+        duplicateTitle: dup.title,
       });
     }
     // An uploaded file wins; otherwise copy the OMDB poster locally so we're
@@ -219,6 +221,8 @@ router.put('/api/discs/:id', upload.single('image'), async (req, res, next) => {
       return res.status(409).json({
         error: `A disc titled "${dup.title}" is already in your collection.`,
         code: 'DUPLICATE_TITLE',
+        duplicateId: String(dup.id),
+        duplicateTitle: dup.title,
       });
     }
     // New upload replaces the cover; otherwise, if there's no local image yet,
