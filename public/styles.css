@@ -206,6 +206,7 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .key-card { background: rgba(231,179,76,0.07); border: 1px solid rgba(231,179,76,0.28); border-radius: 8px; padding: 13px 14px; margin-bottom: 16px; }
 .key-text { font-family: 'Barlow', sans-serif; font-size: 12.5px; color: #d9bd7f; }
 .key-text a { color: #e7b34c; }
+.search-type-row { display: flex; margin-bottom: 12px; }
 .search-row { display: flex; gap: 9px; }
 .search-field { flex: 1; background: #0e0e12; border: 1px solid rgba(255,255,255,0.12); border-radius: 7px; padding: 11px 14px; color: #f2f0ea; font-family: 'Barlow', sans-serif; font-size: 15px; outline: none; }
 .search-field:focus { border-color: #e7b34c; }

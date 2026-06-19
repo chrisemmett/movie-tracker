@@ -6,6 +6,8 @@ const { upload, removeImage, downloadImage } = require('../upload');
 const router = express.Router();
 
 const FORMATS = ['bluray', 'uhd'];
+// OMDB title-search types we expose to the client.
+const SEARCH_TYPES = ['movie', 'series'];
 
 function genCode(format, n) {
   return (format === 'uhd' ? 'UHD' : 'BD') + ' ' + String(n).padStart(3, '0');
@@ -74,7 +76,8 @@ function bodyToColumns(b) {
 
 router.get('/api/omdb/search', async (req, res) => {
   try {
-    res.json({ results: await omdb.search(req.query.q || '') });
+    const type = SEARCH_TYPES.includes(req.query.type) ? req.query.type : 'movie';
+    res.json({ results: await omdb.search(req.query.q || '', { type }) });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }
