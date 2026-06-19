@@ -83,7 +83,7 @@
         .toLowerCase().indexOf(q) >= 0;
     });
     return list.sort(function (a, b) {
-      if (state.sort === 'title') return sortableTitle(a).localeCompare(sortableTitle(b));
+      if (state.sort === 'title') return sortableTitle(a).localeCompare(sortableTitle(b), undefined, { numeric: true, sensitivity: 'base' });
       if (state.sort === 'year') return (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0);
       return (b.addedAt || 0) - (a.addedAt || 0);
     });

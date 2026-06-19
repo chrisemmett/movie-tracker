@@ -263,7 +263,9 @@ The whole frontend is one IIFE with no framework. Key pieces:
 - **Detail modal**: read-only metadata, ripped toggle, edit & inline-confirm
   delete.
 - **Filter / sort**: `filteredSorted()` runs client-side; OK because the
-  collection is small.
+  collection is small. The title sort uses `localeCompare` with
+  `{ numeric: true }` so embedded numbers compare numerically — "21 Jump
+  Street" sorts before "2001: A Space Odyssey" rather than after.
 - **Stats view**: aggregates totals, runtime, average IMDb rating, top
   genres / directors / studios / decades — all computed in-browser.
 - **Poster fallback**: if a `<img>` fires `error`, a deterministic
