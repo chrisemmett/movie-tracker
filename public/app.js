@@ -9,7 +9,7 @@
     view: 'wall',
     query: '',
     fmt: 'all',
-    sort: 'added',
+    sort: 'title',
     detailId: null,
     confirmDelete: false,
     addOpen: false,
