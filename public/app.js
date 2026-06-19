@@ -30,14 +30,20 @@
 
   // ---------- helpers ----------
   function blankForm() {
-    return { title: '', sortTitle: '', year: '', format: 'bluray', studio: '', distributor: '', ripped: false,
+    return { title: '', sortTitle: '', year: '', formats: ['bluray'], studio: '', distributor: '', ripped: false,
       poster: '', director: '', cast: '', plot: '', genre: '', runtime: '', rated: '', ratings: [], imdbID: '' };
   }
-  function fmtMeta(f) {
-    return f === 'uhd'
-      ? { label: '4K UHD', color: '#e7b34c', short: 'UHD' }
-      : { label: 'BLU-RAY', color: '#4d8df0', short: 'BD' };
+  var FMT_META = {
+    bluray:  { label: 'BLU-RAY', color: '#4d8df0', short: 'BD' },
+    uhd:     { label: '4K UHD',  color: '#e7b34c', short: 'UHD' },
+    appletv: { label: 'APPLE TV', color: '#a78bfa', short: 'ATV' },
+  };
+  function fmtMeta(f) { return FMT_META[f] || FMT_META.bluray; }
+  function discFormats(d) {
+    if (d && Array.isArray(d.formats) && d.formats.length) return d.formats;
+    return [d && d.format ? d.format : 'bluray'];
   }
+  function primaryFormat(d) { return discFormats(d)[0]; }
   function hashHue(s) {
     var h = 0; s = s || '';
     for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
@@ -71,7 +77,7 @@
   function filteredSorted() {
     var q = state.query.trim().toLowerCase();
     var list = state.discs.filter(function (d) {
-      if (state.fmt !== 'all' && d.format !== state.fmt) return false;
+      if (state.fmt !== 'all' && discFormats(d).indexOf(state.fmt) < 0) return false;
       if (!q) return true;
       return (d.title + ' ' + d.studio + ' ' + d.distributor + ' ' + d.director + ' ' + d.cast + ' ' + d.year)
         .toLowerCase().indexOf(q) >= 0;
@@ -115,9 +121,14 @@
   }
 
   // ---------- header ----------
+  function countWithFormat(f) {
+    return state.discs.filter(function (d) { return discFormats(d).indexOf(f) >= 0; }).length;
+  }
   function renderHeader() {
     var total = state.discs.length;
-    var uhd = state.discs.filter(function (d) { return d.format === 'uhd'; }).length;
+    var bluray = countWithFormat('bluray');
+    var uhd = countWithFormat('uhd');
+    var appletv = countWithFormat('appletv');
     var ripped = state.discs.filter(function (d) { return d.ripped; }).length;
     document.getElementById('header').innerHTML =
       '<div class="brand">' +
@@ -131,9 +142,10 @@
       '</div>' +
       '<div class="header-right">' +
         '<div class="stats">' +
-          stat(total, 'DISCS', '') +
-          stat(total - uhd, 'BLU-RAY', 'bluray') +
+          stat(total, 'TITLES', '') +
+          stat(bluray, 'BLU-RAY', 'bluray') +
           stat(uhd, '4K UHD', 'uhd') +
+          stat(appletv, 'APPLE TV', 'appletv') +
           stat(ripped, 'RIPPED', '') +
         '</div>' +
         '<button class="btn-add" data-action="open-add"><span>+</span> Add disc</button>' +
@@ -158,6 +170,7 @@
           seg('set-fmt', 'all', state.fmt, 'ALL') +
           seg('set-fmt', 'bluray', state.fmt, 'BLU-RAY') +
           seg('set-fmt', 'uhd', state.fmt, '4K UHD') +
+          seg('set-fmt', 'appletv', state.fmt, 'APPLE TV') +
         '</div>' +
         '<select id="sortSelect" class="select">' +
           opt('added', 'Recently added') + opt('title', 'Title A–Z') + opt('year', 'Year (newest)') +
@@ -187,14 +200,25 @@
       '<div class="empty-msg">' + (none ? 'Your stacks are empty.' : 'No discs match.') + '</div>' +
       '<div class="empty-sub">' + (none ? 'Add your first disc to start the collection.' : 'Try a different search or filter.') + '</div></div>';
   }
+  function formatChips(d) {
+    var fmts = discFormats(d);
+    // Use the short code when a title carries multiple formats so the row
+    // doesn't overflow the card's narrow caption.
+    var useShort = fmts.length > 1;
+    return fmts.map(function (f) {
+      var fm = fmtMeta(f);
+      return '<span class="fmt-chip" style="--accent:' + fm.color + '">' +
+        '<span class="fmt-dot"></span><span class="fmt-label">' + (useShort ? fm.short : fm.label) + '</span></span>';
+    }).join('');
+  }
   function wallHTML(cards) {
     return '<div class="wall">' + cards.map(function (d) {
-      var m = fmtMeta(d.format);
+      var m = fmtMeta(primaryFormat(d));
       return '<div class="card" style="--accent:' + m.color + '" data-action="open-detail" data-id="' + d.id + '">' +
         posterOrHouse(d, 'card') +
         '<div class="card-caption">' +
           '<div class="fmt-row">' +
-            '<span class="fmt-chip"><span class="fmt-dot"></span><span class="fmt-label">' + m.label + '</span></span>' +
+            formatChips(d) +
             (d.ripped ? plexBadge() : '') +
           '</div>' +
           '<div class="card-title">' + escapeHtml(d.title) + '</div>' +
@@ -204,9 +228,11 @@
   }
   function shelfHTML(cards) {
     return '<div class="shelf"><div class="shelf-row">' + cards.map(function (d) {
-      var m = fmtMeta(d.format);
+      var fmts = discFormats(d);
+      var m = fmtMeta(fmts[0]);
+      var shortLabel = fmts.map(function (f) { return fmtMeta(f).short; }).join('/');
       return '<div class="spine" style="--accent:' + m.color + '" title="' + escapeHtml(d.title) + '" data-action="open-detail" data-id="' + d.id + '">' +
-        '<span class="spine-short">' + m.short + '</span>' +
+        '<span class="spine-short">' + escapeHtml(shortLabel) + '</span>' +
         '<div class="spine-title">' + escapeHtml(d.title) + '</div>' +
         (d.ripped ? '<span class="spine-tri">▶</span>' : '') +
         '<span class="spine-code">' + escapeHtml(d.code) + '</span>' +
@@ -262,8 +288,9 @@
     if (!discs.length) return emptyHTML();
 
     var total = discs.length;
-    var bluray = discs.filter(function (d) { return d.format === 'bluray'; }).length;
-    var uhd = discs.filter(function (d) { return d.format === 'uhd'; }).length;
+    var bluray = countWithFormat('bluray');
+    var uhd = countWithFormat('uhd');
+    var appletv = countWithFormat('appletv');
     var ripped = discs.filter(function (d) { return d.ripped; }).length;
     var notRipped = total - ripped;
     var rippedPct = total ? Math.round((ripped / total) * 100) : 0;
@@ -301,12 +328,16 @@
       .filter(function (s) { return s && s !== 'N/A'; }), 10);
     var studioItems = tallyTop(discs.map(function (d) { return (d.studio || '').trim(); }), 10);
 
-    // Format colors for the by-format bar
+    // Format colors for the by-format bar. Counts sum to more than total
+    // when titles are held in multiple formats.
     var formatItems = [
       { key: 'Blu-ray', count: bluray },
       { key: '4K UHD', count: uhd },
-    ].sort(function (a, b) { return b.count - a.count; });
-    var formatColor = function (k) { return k === '4K UHD' ? '#e7b34c' : '#4d8df0'; };
+      { key: 'Apple TV', count: appletv },
+    ].filter(function (it) { return it.count > 0; })
+     .sort(function (a, b) { return b.count - a.count; });
+    var FORMAT_COLOR = { 'Blu-ray': '#4d8df0', '4K UHD': '#e7b34c', 'Apple TV': '#a78bfa' };
+    var formatColor = function (k) { return FORMAT_COLOR[k] || '#e7b34c'; };
 
     var bigStat = function (num, cap, sub) {
       return '<div class="big-stat"><div class="big-num">' + num + '</div>' +
@@ -352,7 +383,8 @@
   function detailModalHTML() {
     var d = state.discs.find(function (x) { return x.id === state.detailId; });
     if (!d) return '';
-    var m = fmtMeta(d.format);
+    var fmts = discFormats(d);
+    var m = fmtMeta(fmts[0]);
     var genres = (d.genre || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
     var castList = (d.cast || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
     var metaLine = [d.year, d.runtime, d.rated].filter(Boolean).join('   ·   ') || '—';
@@ -370,7 +402,10 @@
         '<div class="detail-body">' +
           '<button class="close-btn" data-action="close-detail">✕</button>' +
           '<div class="chip-row">' +
-            '<span class="chip" style="--accent:' + m.color + '"><span class="chip-dot"></span><span class="chip-label">' + m.label + '</span></span>' +
+            fmts.map(function (f) {
+              var fm = fmtMeta(f);
+              return '<span class="chip" style="--accent:' + fm.color + '"><span class="chip-dot"></span><span class="chip-label">' + fm.label + '</span></span>';
+            }).join('') +
             '<span class="detail-code">' + escapeHtml(d.code) + '</span>' +
           '</div>' +
           '<div class="detail-title">' + escapeHtml(d.title) + '</div>' +
@@ -461,9 +496,15 @@
             '<div class="meta-line2"><span class="k">Cast</span> ' + escapeHtml(f.cast || '—') + '</div></div>' +
         '</div>'
       : '';
-    var fb = f.format === 'bluray', fu = f.format === 'uhd', fr = !!f.ripped;
+    var fmts = Array.isArray(f.formats) ? f.formats : [];
+    var has = function (k) { return fmts.indexOf(k) >= 0; };
+    var fr = !!f.ripped;
     var posterNote = f.poster
       ? '<div class="meta-cap" style="margin-top:6px;">Uploading a file overrides the OMDb poster.</div>' : '';
+    var fmtOpt = function (key, dotCls, selCls, label) {
+      return '<button class="fmt-opt' + (has(key) ? ' ' + selCls : '') + '" data-action="form-format" data-fmt="' + key + '">' +
+        '<span class="fmt-opt-dot ' + dotCls + '"></span><span class="fmt-opt-text">' + label + '</span></button>';
+    };
 
     return '<div class="step">' + metaStrip +
       '<div class="field-grid grid-title-year">' +
@@ -478,9 +519,10 @@
         field('Distributor / Label', 'distributor', f.distributor, 'e.g. Criterion') +
       '</div>' +
       '<div class="fmt-rip-row">' +
-        '<div><label class="field-label">Format</label><div class="fmt-opts">' +
-          '<button class="fmt-opt' + (fb ? ' sel-blu' : '') + '" data-action="form-format" data-fmt="bluray"><span class="fmt-opt-dot blu"></span><span class="fmt-opt-text">Blu-ray</span></button>' +
-          '<button class="fmt-opt' + (fu ? ' sel-uhd' : '') + '" data-action="form-format" data-fmt="uhd"><span class="fmt-opt-dot uhd"></span><span class="fmt-opt-text">4K UHD</span></button>' +
+        '<div><label class="field-label">Formats (one or more)</label><div class="fmt-opts">' +
+          fmtOpt('bluray',  'blu', 'sel-blu', 'Blu-ray') +
+          fmtOpt('uhd',     'uhd', 'sel-uhd', '4K UHD') +
+          fmtOpt('appletv', 'atv', 'sel-atv', 'Apple TV') +
         '</div></div>' +
         '<div><label class="field-label">Ripped to Plex</label>' +
           '<button class="rip-pill' + (fr ? ' on' : '') + '" data-action="form-ripped">' +
@@ -551,7 +593,7 @@
     api('/api/omdb/detail/' + encodeURIComponent(imdbID)).then(function (d) {
       state.form = {
         title: d.title || (r && r.title) || '', sortTitle: '', year: (d.year || (r && r.year) || '').slice(0, 4),
-        format: state.form.format, studio: d.studio || '', distributor: '', ripped: false,
+        formats: state.form.formats.slice(), studio: d.studio || '', distributor: '', ripped: false,
         poster: d.poster_url || '', director: d.director || '', cast: d.cast || d.actors || '',
         plot: d.plot || '', genre: d.genre || '', runtime: d.runtime || '', rated: d.rated || '',
         ratings: d.ratings || [], imdbID: d.imdb_id || imdbID,
@@ -568,7 +610,7 @@
     if (!d) return;
     state.addOpen = true; state.editId = id; state.step = 'details'; state.detailId = null;
     state.form = {
-      title: d.title, sortTitle: d.sortTitle || '', year: d.year, format: d.format, studio: d.studio, distributor: d.distributor,
+      title: d.title, sortTitle: d.sortTitle || '', year: d.year, formats: discFormats(d).slice(), studio: d.studio, distributor: d.distributor,
       ripped: d.ripped, poster: d.hasUpload ? '' : d.poster, director: d.director, cast: d.cast,
       plot: d.plot, genre: d.genre, runtime: d.runtime, rated: d.rated, ratings: d.ratings || [], imdbID: d.imdbID,
     };
@@ -582,8 +624,10 @@
     state.saving = true; renderModals();
 
     var fd = new FormData();
-    ['title', 'sortTitle', 'year', 'format', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
+    ['title', 'sortTitle', 'year', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
       .forEach(function (k) { fd.append(k, f[k] || ''); });
+    var fmts = (Array.isArray(f.formats) && f.formats.length) ? f.formats : ['bluray'];
+    fmts.forEach(function (fm) { fd.append('formats', fm); });
     fd.append('ripped', f.ripped ? 'true' : 'false');
     fd.append('poster', f.poster || '');
     fd.append('ratings', JSON.stringify(f.ratings || []));
@@ -652,7 +696,15 @@
       case 'start-manual': syncFormFromDom(); state.step = 'details'; return renderModals();
       case 'back-to-search': state.step = 'search'; return renderModals();
       case 'pick-result': return pickResult(el.dataset.imdb);
-      case 'form-format': syncFormFromDom(); state.form.format = el.dataset.fmt; return renderModals();
+      case 'form-format': {
+        syncFormFromDom();
+        var key = el.dataset.fmt;
+        var cur = Array.isArray(state.form.formats) ? state.form.formats.slice() : [];
+        var i = cur.indexOf(key);
+        if (i >= 0) { if (cur.length > 1) cur.splice(i, 1); } else { cur.push(key); }
+        state.form.formats = cur;
+        return renderModals();
+      }
       case 'form-ripped': syncFormFromDom(); state.form.ripped = !state.form.ripped; return renderModals();
       case 'save-form': return saveForm();
     }

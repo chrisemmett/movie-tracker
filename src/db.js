@@ -66,10 +66,12 @@ const ADDED_COLUMNS = [
   { name: 'ripped', ddl: "ADD COLUMN ripped TINYINT(1) NOT NULL DEFAULT 0 AFTER format" },
   { name: 'ratings', ddl: "ADD COLUMN ratings JSON NULL AFTER imdb_rating" },
   { name: 'sort_title', ddl: "ADD COLUMN sort_title VARCHAR(255) NULL AFTER title" },
+  { name: 'formats', ddl: "ADD COLUMN formats JSON NULL AFTER format" },
 ];
 
 async function ensureColumns(conn) {
   const dbName = process.env.DB_NAME || 'movietracker';
+  const added = new Set();
   for (const col of ADDED_COLUMNS) {
     const [rows] = await conn.query(
       `SELECT 1 FROM information_schema.columns
@@ -79,12 +81,21 @@ async function ensureColumns(conn) {
     if (!rows.length) {
       await conn.query(`ALTER TABLE movies ${col.ddl}`);
       console.log(`Added column movies.${col.name}`);
+      added.add(col.name);
     }
   }
   // Normalize any legacy capitalized format values to the lowercase tokens
   // the UI now uses.
   await conn.query("UPDATE movies SET format='bluray' WHERE format='Blu-ray'");
   await conn.query("UPDATE movies SET format='uhd' WHERE format='UHD'");
+
+  // Backfill the new `formats` array from the single `format` value so older
+  // rows immediately show their format in the new multi-format UI.
+  if (added.has('formats')) {
+    await conn.query(
+      "UPDATE movies SET formats = JSON_ARRAY(format) WHERE formats IS NULL"
+    );
+  }
 }
 
 async function initDb({ retries = 10, delayMs = 3000 } = {}) {
