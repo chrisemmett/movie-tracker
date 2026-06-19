@@ -158,6 +158,12 @@ A single `movies` table. Each row is a disc:
 | `UPLOAD_DIR`      | `/data/uploads`| Where cover images are written            |
 | `OMDB_API_KEY`    | _(required)_   | OMDB API key for lookups                  |
 
+## Design
+
+See [`docs/DESIGN.md`](docs/DESIGN.md) for a low-level architectural
+walkthrough — repository layout, module responsibilities, data model, and
+extension checklist. **All new changes must be reflected in that document.**
+
 ## Notes
 
 - The OMDB poster URL is saved as a reference; an uploaded cover takes precedence.
