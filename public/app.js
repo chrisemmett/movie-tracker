@@ -99,14 +99,14 @@
   }
 
   // ---------- shared bits ----------
-  function houseHTML(hue, initial, code, variant) {
+  function houseHTML(hue, initial, variant) {
     var bg = variant === 'detail'
       ? 'linear-gradient(165deg, hsl(' + hue + ' 36% 18%), #0a0a0e 74%)'
       : 'linear-gradient(165deg, hsl(' + hue + ' 36% 17%), #0b0b0f 72%)';
     var col = variant === 'detail' ? 'hsl(' + hue + ' 44% 26%)' : 'hsl(' + hue + ' 42% 24%)';
     return '<div class="house" style="background:' + bg + '">' +
       '<div class="house-initial" style="color:' + col + '">' + escapeHtml(initial) + '</div>' +
-      '<div class="house-code">' + escapeHtml(code) + '</div></div>';
+      '</div>';
   }
   function plexBadge() {
     return '<span class="plex-badge"><span class="tri">▶</span><span class="txt">PLEX</span></span>';
@@ -117,7 +117,7 @@
       return '<img class="card-img" data-poster="' + escapeHtml(d.poster) + '" src="' + escapeHtml(d.poster) + '" alt="">';
     }
     var initial = (d.title || '?').trim().charAt(0).toUpperCase();
-    return houseHTML(hashHue(d.title), initial, d.code, variant);
+    return houseHTML(hashHue(d.title), initial, variant);
   }
 
   // ---------- header ----------
@@ -237,7 +237,6 @@
         '<span class="spine-short">' + escapeHtml(shortLabel) + '</span>' +
         '<div class="spine-title">' + escapeHtml(d.title) + '</div>' +
         (d.ripped ? '<span class="spine-tri">▶</span>' : '') +
-        '<span class="spine-code">' + escapeHtml(d.code) + '</span>' +
       '</div>';
     }).join('') + '</div></div>';
   }
@@ -408,7 +407,6 @@
               var fm = fmtMeta(f);
               return '<span class="chip" style="--accent:' + fm.color + '"><span class="chip-dot"></span><span class="chip-label">' + fm.label + '</span></span>';
             }).join('') +
-            '<span class="detail-code">' + escapeHtml(d.code) + '</span>' +
           '</div>' +
           '<div class="detail-title">' + escapeHtml(d.title) + '</div>' +
           '<div class="meta-line">' + escapeHtml(metaLine) + '</div>' +
