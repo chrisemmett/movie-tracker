@@ -10,6 +10,7 @@
     query: '',
     fmt: 'all',
     sort: 'title',
+    plex: 'all',
     detailId: null,
     confirmDelete: false,
     addOpen: false,
@@ -78,12 +79,14 @@
     var q = state.query.trim().toLowerCase();
     var list = state.discs.filter(function (d) {
       if (state.fmt !== 'all' && discFormats(d).indexOf(state.fmt) < 0) return false;
+      if (state.plex === 'plex' && !d.ripped) return false;
+      if (state.plex === 'not-plex' && d.ripped) return false;
       if (!q) return true;
       return (d.title + ' ' + d.studio + ' ' + d.distributor + ' ' + d.director + ' ' + d.cast + ' ' + d.year)
         .toLowerCase().indexOf(q) >= 0;
     });
     return list.sort(function (a, b) {
-      if (state.sort === 'title') return sortableTitle(a).localeCompare(sortableTitle(b));
+      if (state.sort === 'title') return sortableTitle(a).localeCompare(sortableTitle(b), undefined, { numeric: true, sensitivity: 'base' });
       if (state.sort === 'year') return (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0);
       return (b.addedAt || 0) - (a.addedAt || 0);
     });
@@ -171,6 +174,11 @@
           seg('set-fmt', 'bluray', state.fmt, 'BLU-RAY') +
           seg('set-fmt', 'uhd', state.fmt, '4K UHD') +
           seg('set-fmt', 'appletv', state.fmt, 'APPLE TV') +
+        '</div>' +
+        '<div class="segmented">' +
+          seg('set-plex', 'all', state.plex, 'ALL') +
+          seg('set-plex', 'plex', state.plex, '▶ PLEX') +
+          seg('set-plex', 'not-plex', state.plex, 'NOT PLEX') +
         '</div>' +
         '<select id="sortSelect" class="select">' +
           opt('added', 'Recently added') + opt('title', 'Title A–Z') + opt('year', 'Year (newest)') +
@@ -714,6 +722,7 @@
     switch (action) {
       case 'open-add': return openAdd();
       case 'set-fmt': state.fmt = el.dataset.val; renderToolbar(); renderContent(); return;
+      case 'set-plex': state.plex = el.dataset.val; renderToolbar(); renderContent(); return;
       case 'set-view': state.view = el.dataset.val; renderToolbar(); renderContent(); return;
       case 'open-detail': return openDetail(el.dataset.id);
       case 'close-detail': return closeDetail();
