@@ -211,10 +211,33 @@
         '<span class="fmt-dot"></span><span class="fmt-label">' + (useShort ? fm.short : fm.label) + '</span></span>';
     }).join('');
   }
+  // First letter of a disc's sortable title, used by the wall's A–Z index.
+  // Non-letters (numerics like "2001") bucket into "#".
+  function wallLetter(d) {
+    var ch = (sortableTitle(d) || '').charAt(0).toUpperCase();
+    if (ch >= 'A' && ch <= 'Z') return ch;
+    if (ch >= '0' && ch <= '9') return '#';
+    return '';
+  }
+  function azIndexHTML(cards) {
+    var present = {};
+    cards.forEach(function (d) { var L = wallLetter(d); if (L) present[L] = true; });
+    var letters = ['#'];
+    for (var i = 65; i <= 90; i++) letters.push(String.fromCharCode(i));
+    return '<nav class="az-index" aria-label="Jump to letter">' + letters.map(function (L) {
+      var on = !!present[L];
+      return on
+        ? '<button class="az-letter" data-action="az-jump" data-letter="' + L + '">' + L + '</button>'
+        : '<span class="az-letter off" aria-disabled="true">' + L + '</span>';
+    }).join('') + '</nav>';
+  }
   function wallHTML(cards) {
-    return '<div class="wall">' + cards.map(function (d) {
+    // A–Z jump list is only meaningful when the wall is alphabetically
+    // sorted; under year / recently-added the first letters would jump around.
+    var showAz = state.sort === 'title';
+    var inner = '<div class="wall">' + cards.map(function (d) {
       var m = fmtMeta(primaryFormat(d));
-      return '<div class="card" style="--accent:' + m.color + '" data-action="open-detail" data-id="' + d.id + '">' +
+      return '<div class="card" style="--accent:' + m.color + '" data-action="open-detail" data-id="' + d.id + '" data-letter="' + wallLetter(d) + '">' +
         posterOrHouse(d, 'card') +
         '<div class="card-caption">' +
           '<div class="fmt-row">' +
@@ -227,6 +250,7 @@
           '</div>' +
         '</div></div>';
     }).join('') + '</div>';
+    return showAz ? '<div class="wall-wrap">' + inner + azIndexHTML(cards) + '</div>' : inner;
   }
   function shelfHTML(cards) {
     return '<div class="shelf"><div class="shelf-row">' + cards.map(function (d) {
@@ -557,6 +581,19 @@
     state.form = blankForm(); state.results = []; state.searchQuery = '';
     state.searchType = 'movie';
     state.searched = false; state.searchError = ''; renderModals();
+    var input = document.getElementById('omdbSearch');
+    if (input) input.focus();
+  }
+
+  // Scroll the wall so the first card whose sortable title starts with
+  // `letter` sits just below the sticky site header.
+  function jumpToLetter(letter) {
+    var card = document.querySelector('.wall .card[data-letter="' + letter + '"]');
+    if (!card) return;
+    var header = document.querySelector('.site-header');
+    var offset = (header ? header.offsetHeight : 0) + 12;
+    var top = card.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: top, behavior: 'smooth' });
   }
   function closeAdd() { state.addOpen = false; state.editId = null; renderModals(); }
 
@@ -707,6 +744,7 @@
       }
       case 'form-ripped': syncFormFromDom(); state.form.ripped = !state.form.ripped; return renderModals();
       case 'save-form': return saveForm();
+      case 'az-jump': return jumpToLetter(el.dataset.letter);
     }
   }
 
