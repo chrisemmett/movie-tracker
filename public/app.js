@@ -732,8 +732,10 @@
 
   // ---------- init ----------
   root.innerHTML =
-    '<div id="header" class="header"></div>' +
-    '<div id="toolbar" class="toolbar"></div>' +
+    '<div class="site-header">' +
+      '<div id="header" class="header"></div>' +
+      '<div id="toolbar" class="toolbar"></div>' +
+    '</div>' +
     '<div id="content" class="wrap"></div>' +
     '<div id="modals"></div>';
 
