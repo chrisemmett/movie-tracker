@@ -273,7 +273,7 @@
   }
   function bars(items, accentByKey) {
     if (!items.length) return '<div class="stat-empty">No data yet.</div>';
-    var max = items[0].count;
+    var max = items.reduce(function (m, it) { return it.count > m ? it.count : m; }, 0);
     return '<ul class="bar-list">' + items.map(function (it) {
       var pct = max ? Math.round((it.count / max) * 100) : 0;
       var color = accentByKey ? accentByKey(it.key) : '#e7b34c';
