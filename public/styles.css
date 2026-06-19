@@ -140,7 +140,6 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 }
 .spine:hover { transform: translateY(-12px); box-shadow: 0 24px 40px rgba(0,0,0,0.62); }
 .spine::after { content: ''; position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%); width: 78%; height: 14px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.55), rgba(0,0,0,0) 72%); }
-.spine-short { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.08em; color: var(--accent); }
 .spine-title {
   writing-mode: vertical-rl; transform: rotate(180deg); font-family: 'Barlow Condensed', sans-serif;
   font-weight: 600; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; color: #e9e6df;

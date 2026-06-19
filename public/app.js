@@ -230,11 +230,8 @@
   }
   function shelfHTML(cards) {
     return '<div class="shelf"><div class="shelf-row">' + cards.map(function (d) {
-      var fmts = discFormats(d);
-      var m = fmtMeta(fmts[0]);
-      var shortLabel = fmts.map(function (f) { return fmtMeta(f).short; }).join('/');
+      var m = fmtMeta(primaryFormat(d));
       return '<div class="spine" style="--accent:' + m.color + '" title="' + escapeHtml(d.title) + '" data-action="open-detail" data-id="' + d.id + '">' +
-        '<span class="spine-short">' + escapeHtml(shortLabel) + '</span>' +
         '<div class="spine-title">' + escapeHtml(d.title) + '</div>' +
         (d.ripped ? '<span class="spine-tri">▶</span>' : '') +
       '</div>';
