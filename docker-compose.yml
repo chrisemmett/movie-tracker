@@ -1,6 +1,8 @@
 # Docker Compose stack for the disc collection tracker.
-# Designed to run on a NAS: edit the volume paths below to point at the
-# folders on your NAS where you want the database and cover images to live.
+# Database and cover images live in NAMED Docker volumes (see the `volumes:`
+# block at the bottom) so they survive image rebuilds, `docker compose up
+# --build`, and `docker compose down`. They are only removed if you explicitly
+# run `docker compose down -v` (or `docker volume rm ...`).
 
 services:
   app:
@@ -22,9 +24,9 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     volumes:
-      # Cover images uploaded through the app. Point the left side at a
-      # folder on your NAS to keep images outside the container.
-      - ./data/uploads:/data/uploads
+      # Cover images uploaded through the app, kept in a named volume so a
+      # rebuild can't wipe them.
+      - uploads_data:/data/uploads
 
   db:
     image: mysql:8.0
@@ -35,12 +37,18 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-movietracker}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
     volumes:
-      # MySQL data files. Point the left side at a folder on your NAS for
-      # persistent, backup-friendly storage.
-      - ./data/mysql:/var/lib/mysql
+      # MySQL data files in a named volume — persists across rebuilds.
+      - db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+
+# Named volumes are managed by Docker and stored under its data root on the
+# NAS. Use scripts/backup.sh to snapshot them to portable files you can keep
+# wherever you like.
+volumes:
+  db_data:
+  uploads_data:
