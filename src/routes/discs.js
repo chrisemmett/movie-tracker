@@ -1,7 +1,7 @@
 const express = require('express');
 const { getPool } = require('../db');
 const omdb = require('../omdb');
-const { upload, removeImage } = require('../upload');
+const { upload, removeImage, downloadImage } = require('../upload');
 
 const router = express.Router();
 
@@ -116,7 +116,14 @@ router.post('/api/discs', upload.single('image'), async (req, res, next) => {
       if (req.file) removeImage(req.file.filename);
       return res.status(400).json({ error: 'Title is required.' });
     }
-    if (req.file) data.image_file = req.file.filename;
+    // An uploaded file wins; otherwise copy the OMDB poster locally so we're
+    // not reliant on the external host.
+    if (req.file) {
+      data.image_file = req.file.filename;
+    } else if (data.poster_url) {
+      const local = await downloadImage(data.poster_url);
+      if (local) data.image_file = local;
+    }
 
     const [countRows] = await getPool().query('SELECT COUNT(*) AS n FROM movies');
     data.code = genCode(data.format, (countRows[0].n || 0) + 1);
@@ -146,7 +153,14 @@ router.put('/api/discs/:id', upload.single('image'), async (req, res, next) => {
       if (req.file) removeImage(req.file.filename);
       return res.status(400).json({ error: 'Title is required.' });
     }
-    if (req.file) data.image_file = req.file.filename;
+    // New upload replaces the cover; otherwise, if there's no local image yet,
+    // copy the OMDB poster locally so old discs migrate off the external host.
+    if (req.file) {
+      data.image_file = req.file.filename;
+    } else if (!existing.image_file && data.poster_url) {
+      const local = await downloadImage(data.poster_url);
+      if (local) data.image_file = local;
+    }
     // Keep the original catalog code; only mint one if it was missing.
     data.code = existing.code || genCode(data.format, existing.id);
 

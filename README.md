@@ -13,11 +13,13 @@ locally.
 - **Ripped to Plex** flag, toggleable inline from the detail view
 - **Two views** of the collection: a poster **wall** grid and a **shelf** of
   vertical spines (color-coded by format), with a generated catalog code per disc
-- **Upload cover art** — stored on a Docker volume on your NAS; falls back to the
-  OMDB poster, then to a generated house-style cover when no image exists
+- **Upload cover art** — stored on a Docker volume on your NAS. When you add a
+  title via OMDB, its poster is **copied to your NAS** too, so cover art keeps
+  working even if OMDB is down. Falls back to a generated house-style cover when
+  no image exists
 - **OMDB search-and-pick on add**: search by title, choose the match, and details
-  (director, cast, plot, genre, runtime, rating, and review scores) are fetched
-  and saved locally so they don't depend on OMDB later
+  (studio, director, cast, plot, genre, runtime, rating, and review scores) are
+  fetched and saved locally so they don't depend on OMDB later
 - Search, format filtering, and sorting (recently added / title / year)
 - Detail modal with metadata, review-score row, edit, and inline-confirm delete
 
