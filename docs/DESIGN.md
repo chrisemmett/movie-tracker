@@ -297,6 +297,16 @@ The whole frontend is one IIFE with no framework. Key pieces:
   correlate with row order.
 - **Add modal autofocus**: opening the Add Disc modal focuses the OMDb
   search field immediately so the user can start typing without clicking.
+- **Mobile menu**: on narrow viewports the toolbar's filter / sort / view
+  controls (`.toolbar-right`) collapse behind a `☰ Menu` button rendered
+  between the search field and the controls. `state.menuOpen` toggles a
+  `.open` class on both the button and `.toolbar-right`; the controls render
+  as a full-width dropdown column below the search row when open. On desktop
+  the menu button is hidden and the controls show inline as before. The
+  header renders the brand, the stats strip, and the Add button as three
+  direct children of `.header` (no `.header-right` wrapper) so that, on
+  mobile, the brand and Add button share the top row while the stats reflow
+  to a compact full-width strip beneath them.
 - **Duplicate-title guard**: when a save returns `409 DUPLICATE_TITLE`,
   the details form stays open, the title input is focused and selected,
   and a red inline warning is rendered above the fields with a
@@ -318,6 +328,14 @@ The header + toolbar are wrapped in a `.site-header` container that uses
 so the brand, stats, add button, search, and view controls stay pinned to
 the top of the viewport while only the wall / shelf / stats content
 scrolls beneath them.
+
+A single `@media (max-width: 720px)` block makes the layout
+mobile-friendly: the sticky header is compacted (smaller brand, the stats
+collapse into a single full-width strip, a slimmer Add button), the toolbar
+controls hide behind the `.menu-toggle` button and reflow into a stacked
+full-width dropdown when opened, the A–Z index is hidden (and its
+right-side gutter removed), and the wall grid tightens to
+`minmax(140px, 1fr)`. The same query also stacks the detail/add modals.
 
 ---
 
@@ -428,6 +446,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-19 (duplicate check now requires identical title AND year, so different-year releases of the same title can coexist).*
+*Last revised: 2026-06-20 (mobile-friendly layout: compact sticky header and a collapsible toolbar menu behind a ☰ button on narrow viewports).*
 
 

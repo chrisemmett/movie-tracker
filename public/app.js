@@ -26,6 +26,7 @@
     saving: false,
     duplicateWarning: null,
     imgBroken: new Set(),
+    menuOpen: false,
   };
 
   var root = document.getElementById('app');
@@ -152,16 +153,14 @@
         '</svg>' +
         '<div><div class="brand-mark">STACKS</div><div class="brand-sub">Media Library</div></div>' +
       '</div>' +
-      '<div class="header-right">' +
-        '<div class="stats">' +
-          stat(total, 'TITLES', '') +
-          stat(bluray, 'BLU-RAY', 'bluray') +
-          stat(uhd, '4K UHD', 'uhd') +
-          stat(appletv, 'APPLE TV', 'appletv') +
-          stat(ripped, 'RIPPED', '') +
-        '</div>' +
-        '<button class="btn-add" data-action="open-add"><span>+</span> Add disc</button>' +
-      '</div>';
+      '<div class="stats">' +
+        stat(total, 'TITLES', '') +
+        stat(bluray, 'BLU-RAY', 'bluray') +
+        stat(uhd, '4K UHD', 'uhd') +
+        stat(appletv, 'APPLE TV', 'appletv') +
+        stat(ripped, 'RIPPED', '') +
+      '</div>' +
+      '<button class="btn-add" data-action="open-add"><span>+</span> Add disc</button>';
   }
   function stat(num, cap, cls) {
     return '<div class="stat"><div class="stat-num ' + cls + '">' + num + '</div><div class="stat-cap">' + cap + '</div></div>';
@@ -177,7 +176,10 @@
         '<span class="search-icon">⌕</span>' +
         '<input id="searchInput" class="search-input" placeholder="Search titles, directors, studios…" value="' + escapeHtml(state.query) + '">' +
       '</div>' +
-      '<div class="toolbar-right">' +
+      '<button class="menu-toggle' + (state.menuOpen ? ' open' : '') + '" data-action="toggle-menu" aria-expanded="' + (state.menuOpen ? 'true' : 'false') + '" aria-label="Filters and view options">' +
+        '<span class="menu-icon">☰</span><span class="menu-label">Menu</span>' +
+      '</button>' +
+      '<div class="toolbar-right' + (state.menuOpen ? ' open' : '') + '">' +
         '<div class="segmented">' +
           seg('set-fmt', 'all', state.fmt, 'ALL') +
           seg('set-fmt', 'bluray', state.fmt, 'BLU-RAY') +
@@ -757,6 +759,7 @@
     }
     switch (action) {
       case 'open-add': return openAdd();
+      case 'toggle-menu': state.menuOpen = !state.menuOpen; return renderToolbar();
       case 'set-fmt': state.fmt = el.dataset.val; renderToolbar(); renderContent(); return;
       case 'set-plex': state.plex = el.dataset.val; renderToolbar(); renderContent(); return;
       case 'set-view': state.view = el.dataset.val; renderToolbar(); renderContent(); return;
