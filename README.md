@@ -30,7 +30,9 @@ cover art, and enrich each entry with data pulled from
   runtime, rating, language, country, and review scores) are fetched and saved
   locally so they don't depend on OMDB later
 - **Search**, **format filtering**, **Plex-status filtering** (all / ripped /
-  not ripped), and **sorting** (recently added / title A–Z / year newest)
+  not ripped), and **sorting** (recently added / title A–Z / title A–Z by
+  custom sort title / year newest) — the chosen sort is remembered in the
+  browser between visits
 - **Duplicate guard** — adding or editing a title that already exists (same
   title + year) is blocked with an inline warning that links straight to the
   existing entry

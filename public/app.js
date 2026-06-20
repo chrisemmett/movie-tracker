@@ -9,6 +9,7 @@
     view: 'wall',
     query: '',
     fmt: 'all',
+    settings: {},
     sort: 'title',
     plex: 'all',
     detailId: null,
@@ -41,6 +42,35 @@
     uhd:     { label: '4K UHD',  color: '#e7b34c', short: 'UHD' },
     appletv: { label: 'APPLE TV', color: '#a78bfa', short: 'ATV' },
   };
+  // Title-sort options. 'title' sorts on the real title (ignoring any custom
+  // sort title); 'title-custom' honours each disc's custom sort title.
+  var SORT_OPTIONS = [
+    { val: 'added', label: 'Recently added' },
+    { val: 'title', label: 'Title A–Z' },
+    { val: 'title-custom', label: 'Title A–Z (Custom)' },
+    { val: 'year', label: 'Year (newest)' },
+  ];
+  function isValidSort(v) { return SORT_OPTIONS.some(function (o) { return o.val === v; }); }
+
+  // ---------- settings (persisted per browser via localStorage) ----------
+  // Session-level user preferences live here so the app can remember choices
+  // like the active sort across reloads. Add new keys to DEFAULT_SETTINGS.
+  var SETTINGS_KEY = 'stacks.settings';
+  var DEFAULT_SETTINGS = { sort: 'title' };
+  function loadSettings() {
+    var saved = {};
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) { var parsed = JSON.parse(raw); if (parsed && typeof parsed === 'object') saved = parsed; }
+    } catch (e) { /* private mode / corrupt value — fall back to defaults */ }
+    var s = Object.assign({}, DEFAULT_SETTINGS, saved);
+    if (!isValidSort(s.sort)) s.sort = DEFAULT_SETTINGS.sort;
+    return s;
+  }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
+    catch (e) { /* ignore quota / disabled storage */ }
+  }
   function fmtMeta(f) { return FMT_META[f] || FMT_META.bluray; }
   function discFormats(d) {
     if (d && Array.isArray(d.formats) && d.formats.length) return d.formats;
@@ -96,19 +126,31 @@
         .toLowerCase().indexOf(q) >= 0;
     });
     return list.sort(function (a, b) {
-      if (state.sort === 'title') return sortableTitle(a).localeCompare(sortableTitle(b), undefined, { numeric: true, sensitivity: 'base' });
+      if (state.sort === 'title') return realTitle(a).localeCompare(realTitle(b), undefined, { numeric: true, sensitivity: 'base' });
+      if (state.sort === 'title-custom') return sortableTitle(a).localeCompare(sortableTitle(b), undefined, { numeric: true, sensitivity: 'base' });
       if (state.sort === 'year') return (parseInt(b.year, 10) || 0) - (parseInt(a.year, 10) || 0);
       return (b.addedAt || 0) - (a.addedAt || 0);
     });
   }
 
+  // The disc's real title with a leading "The " stripped — ignores any custom
+  // sort title. Used by the plain "Title A–Z" sort.
+  function realTitle(d) {
+    return (d && d.title ? d.title : '').replace(/^the\s+/i, '').trim();
+  }
   // A disc sorts by its custom sort title when set (e.g. "Matrix 2" for
-  // "The Matrix Reloaded"), otherwise the regular title with a leading
-  // "The " stripped.
+  // "The Matrix Reloaded"), otherwise the real title. Used by the
+  // "Title A–Z (Custom)" sort.
   function sortableTitle(d) {
     var custom = d && d.sortTitle ? d.sortTitle.trim() : '';
     if (custom) return custom;
-    return (d && d.title ? d.title : '').replace(/^the\s+/i, '').trim();
+    return realTitle(d);
+  }
+  // The title used for the active sort's grouping/letter index. The custom
+  // sort honours sort titles; every other (alphabetical) sort uses the real
+  // title.
+  function sortKeyTitle(d) {
+    return state.sort === 'title-custom' ? sortableTitle(d) : realTitle(d);
   }
 
   // ---------- shared bits ----------
@@ -192,7 +234,7 @@
           seg('set-plex', 'not-plex', state.plex, 'NOT PLEX') +
         '</div>' +
         '<select id="sortSelect" class="select">' +
-          opt('added', 'Recently added') + opt('title', 'Title A–Z') + opt('year', 'Year (newest)') +
+          SORT_OPTIONS.map(function (o) { return opt(o.val, o.label); }).join('') +
         '</select>' +
         '<div class="segmented">' +
           seg('set-view', 'wall', state.view, '▦ WALL') +
@@ -230,10 +272,10 @@
         '<span class="fmt-dot"></span><span class="fmt-label">' + (useShort ? fm.short : fm.label) + '</span></span>';
     }).join('');
   }
-  // First letter of a disc's sortable title, used by the wall's A–Z index.
+  // First letter of a disc's active-sort title, used by the wall's A–Z index.
   // Non-letters (numerics like "2001") bucket into "#".
   function wallLetter(d) {
-    var ch = (sortableTitle(d) || '').charAt(0).toUpperCase();
+    var ch = (sortKeyTitle(d) || '').charAt(0).toUpperCase();
     if (ch >= 'A' && ch <= 'Z') return ch;
     if (ch >= '0' && ch <= '9') return '#';
     return '';
@@ -253,7 +295,7 @@
   function wallHTML(cards) {
     // A–Z jump list is only meaningful when the wall is alphabetically
     // sorted; under year / recently-added the first letters would jump around.
-    var showAz = state.sort === 'title';
+    var showAz = state.sort === 'title' || state.sort === 'title-custom';
     var inner = '<div class="wall">' + cards.map(function (d) {
       var m = fmtMeta(primaryFormat(d));
       return '<div class="card" style="--accent:' + m.color + '" data-action="open-detail" data-id="' + d.id + '" data-letter="' + wallLetter(d) + '">' +
@@ -803,7 +845,12 @@
     if (e.target.id === 'searchInput') { state.query = e.target.value; renderContent(); }
   }
   function onChange(e) {
-    if (e.target.id === 'sortSelect') { state.sort = e.target.value; renderContent(); }
+    if (e.target.id === 'sortSelect') {
+      state.sort = e.target.value;
+      state.settings.sort = state.sort;
+      saveSettings();
+      renderContent();
+    }
   }
   function onKeydown(e) {
     if (e.key === 'Escape') {
@@ -830,6 +877,9 @@
     '</div>' +
     '<div id="content" class="wrap"></div>' +
     '<div id="modals"></div>';
+
+  state.settings = loadSettings();
+  state.sort = state.settings.sort;
 
   root.addEventListener('click', onClick);
   root.addEventListener('input', onInput);
