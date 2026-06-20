@@ -141,7 +141,7 @@ router.get('/api/omdb/search', async (req, res) => {
     const { results, total } = await omdb.search(req.query.q || '', { type, year });
     res.json({ results, totalResults: total });
   } catch (err) {
-    res.status(err.status || 500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message, code: err.code });
   }
 });
 

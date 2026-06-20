@@ -33,6 +33,9 @@ async function request(params) {
   if (data.Response === 'False') {
     const err = new Error(data.Error || 'OMDB returned no result');
     err.status = 404;
+    // OMDB refuses to list results for a query that's too broad. Tag it so the
+    // client can offer a direct IMDb-ID lookup as an escape hatch.
+    if (/too many results/i.test(data.Error || '')) err.code = 'OMDB_TOO_MANY';
     throw err;
   }
   return data;
