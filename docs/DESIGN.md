@@ -288,8 +288,9 @@ The whole frontend is one IIFE with no framework. Key pieces:
   collection is small. Sort options (`SORT_OPTIONS`, the single source of
   truth for the toolbar `<select>` and for validating persisted values):
   `added` (recently added, default order), `title` (**default** — "Title
-  A–Z", alphabetises on the real title via `realTitle()`, ignoring any
-  custom sort title), `title-custom` ("Title A–Z (Custom)", alphabetises on
+  A–Z", alphabetises on the real title via `realTitle()`, which strips a
+  leading article ("The ", "A ", "An ") and ignores any custom sort
+  title), `title-custom` ("Title A–Z (Custom)", alphabetises on
   `sortableTitle()`, which honours a disc's custom sort title), and `year`
   (newest first). The alphabetical sorts use `localeCompare` with
   `{ numeric: true }` so embedded numbers compare numerically — "21 Jump
@@ -473,6 +474,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
+*Last revised: 2026-06-20 (alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
 
 
