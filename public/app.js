@@ -80,6 +80,12 @@
     return [d && d.format ? d.format : 'bluray'];
   }
   function primaryFormat(d) { return discFormats(d)[0]; }
+  // Apple TV titles are digital-only and can't be ripped to Plex, so they're
+  // excluded from Plex-status stats. A disc is rippable if it's held in at
+  // least one physical format.
+  function isRippable(d) {
+    return discFormats(d).some(function (f) { return f !== 'appletv'; });
+  }
   function hashHue(s) {
     var h = 0; s = s || '';
     for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
@@ -378,9 +384,11 @@
     var bluray = countWithFormat('bluray');
     var uhd = countWithFormat('uhd');
     var appletv = countWithFormat('appletv');
-    var ripped = discs.filter(function (d) { return d.ripped; }).length;
-    var notRipped = total - ripped;
-    var rippedPct = total ? Math.round((ripped / total) * 100) : 0;
+    // Plex-status figures only count rippable (non Apple TV-only) titles.
+    var rippableTotal = discs.filter(isRippable).length;
+    var ripped = discs.filter(function (d) { return d.ripped && isRippable(d); }).length;
+    var notRipped = rippableTotal - ripped;
+    var rippedPct = rippableTotal ? Math.round((ripped / rippableTotal) * 100) : 0;
 
     var totalRuntime = discs.reduce(function (s, d) { return s + parseRuntimeMinutes(d.runtime); }, 0);
     var runtimeDays = (totalRuntime / 60 / 24).toFixed(1);
@@ -440,7 +448,7 @@
     return '<div class="stats-wrap">' +
       '<div class="big-stats">' +
         bigStat(total, 'Total discs', '') +
-        bigStat(ripped + ' / ' + total, 'Ripped to Plex', rippedPct + '% of collection') +
+        bigStat(ripped + ' / ' + rippableTotal, 'Ripped to Plex', rippedPct + '% of rippable titles') +
         bigStat(runtimeDays + 'd', 'Total runtime', totalRuntime + ' min across ' + imdbScores.length + ' rated titles') +
         bigStat(avgImdb, 'Avg IMDb rating', imdbScores.length + ' titles scored') +
       '</div>' +

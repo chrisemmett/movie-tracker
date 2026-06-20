@@ -329,7 +329,12 @@ The whole frontend is one IIFE with no framework. Key pieces:
   these settings live only in the browser. Add future preferences as new keys
   on `DEFAULT_SETTINGS`.
 - **Stats view**: aggregates totals, runtime, average IMDb rating, top
-  genres / directors / studios / decades — all computed in-browser.
+  genres / directors / studios / decades — all computed in-browser. The
+  Plex-status figures (the "Ripped to Plex" headline stat and the "Plex
+  status" panel) only count *rippable* titles: Apple TV is digital-only and
+  can't be ripped, so titles held solely in the Apple TV format are excluded
+  (see `isRippable()`). A title in both a physical format and Apple TV still
+  counts.
 - **Poster fallback**: if a `<img>` fires `error`, a deterministic
   house-style cover (hue derived from the title hash) is rendered in its
   place.
@@ -496,6 +501,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; the search box accepts an IMDb ID (`tt…`) for a direct lookup and surfaces that escape hatch when OMDB returns "Too many results"; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
+*Last revised: 2026-06-20 (dashboard Plex-status figures now exclude Apple TV-only titles, which can't be ripped, via `isRippable()`; OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; the search box accepts an IMDb ID (`tt…`) for a direct lookup and surfaces that escape hatch when OMDB returns "Too many results"; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
 
 
