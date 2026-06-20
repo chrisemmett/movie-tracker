@@ -277,8 +277,13 @@ The whole frontend is one IIFE with no framework. Key pieces:
   delete. The dialog is a fixed size (`.dialog` has a set `height`, not a
   `max-height`) so it doesn't grow with the synopsis; the plot (`.plot`) lives
   in a fixed-height box that scrolls internally when the text overflows. On
-  mobile the dialog stacks vertically and reverts to a `max-height` so it can
-  size to its content.
+  mobile the layout flips: the dialog is a fixed-height box with
+  `overflow: hidden`, the poster (`.detail-cover`) is pulled out of the flow
+  and pinned behind the content as a 5%-opacity backdrop
+  (`position: absolute; inset: 0`), and `.detail-body` fills the modal as the
+  single scroll region. The synopsis loses its internal scroll box (`.plot`
+  height is unset) so it flows inline — eliminating the nested
+  poster/synopsis/body scroll points in favour of one.
 - **Filter / sort**: `filteredSorted()` runs client-side; OK because the
   collection is small. The title sort uses `localeCompare` with
   `{ numeric: true }` so embedded numbers compare numerically — "21 Jump
@@ -451,6 +456,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (mobile wall switched to a fixed three-up grid; detail dialog is now a fixed size with an internally-scrolling synopsis).*
+*Last revised: 2026-06-20 (mobile detail modal: poster moved to a 5%-opacity backdrop and the body fills the modal as a single scroll region).*
 
 

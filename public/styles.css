@@ -350,8 +350,17 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .btn-save { background: #e7b34c; color: #0a0a0d; border: none; border-radius: 7px; padding: 11px 22px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; box-shadow: 0 6px 18px rgba(231,179,76,0.25); }
 
 @media (max-width: 720px) {
-  .dialog { flex-direction: column; height: auto; max-height: 92vh; overflow: auto; }
-  .detail-cover { flex: 0 0 320px; }
+  /* Single-scroll detail: poster becomes a faint backdrop and the body fills
+     the whole modal as the only scroll region. */
+  .dialog { flex-direction: column; height: min(760px, 92vh); overflow: hidden; position: relative; }
+  .detail-cover {
+    position: absolute; inset: 0; flex: none; min-height: 0;
+    opacity: 0.05; pointer-events: none; z-index: 0; background: transparent;
+  }
+  .detail-cover .house-initial { opacity: 1; }
+  .detail-body { position: relative; z-index: 1; height: 100%; }
+  /* Synopsis flows inline; the body is the single scroll region. */
+  .plot { height: auto; overflow: visible; padding-right: 0; }
   .az-index { display: none; }
 
   /* ---------- Mobile: compact header + collapsible menu ---------- */
