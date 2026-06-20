@@ -124,8 +124,13 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
   whitelisted to `movie` or `series`; the optional `year` maps to OMDB's `y`
   parameter to narrow broad searches. When `total` exceeds `results.length`
   the caller is looking at the top 10 of a larger set.
-- `detail(imdbID)` → full record. Normalises OMDB's `"N/A"` sentinel into
-  `null`, returns ratings as an array of `{ source, value }`.
+- `detail(imdbID)` → full record (OMDB's `i` lookup). Normalises OMDB's
+  `"N/A"` sentinel into `null`, returns ratings as an array of
+  `{ source, value }`. The client also reuses the detail proxy as a direct
+  IMDb-ID lookup when the user types a `tt…` code into the search box.
+- When OMDB refuses a too-broad query ("Too many results."), the thrown error
+  carries `code: 'OMDB_TOO_MANY'` so the search route and client can offer the
+  IMDb-ID escape hatch instead of a dead end.
 - The OMDB API key lives only on the server (`OMDB_API_KEY` env var). The
   browser never sees it; the frontend always goes through the proxy routes.
 - Missing/invalid key surfaces as a `503` from the proxy routes.
@@ -150,7 +155,7 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 | PUT    | `/api/discs/:id`              | update; multipart, optional `image` field        |
 | PATCH  | `/api/discs/:id/ripped`       | toggle `ripped` boolean                          |
 | DELETE | `/api/discs/:id`              | delete the row and its uploaded image            |
-| GET    | `/api/omdb/search?q=&type=&y=` | proxied OMDB search (`type` ∈ `movie`, `series`; optional 4-digit `y` year); returns `{ results, totalResults }` |
+| GET    | `/api/omdb/search?q=&type=&y=` | proxied OMDB search (`type` ∈ `movie`, `series`; optional 4-digit `y` year); returns `{ results, totalResults }`. Errors forward OMDB's `code` (e.g. `OMDB_TOO_MANY`) |
 | GET    | `/api/omdb/detail/:imdbID`    | proxied OMDB detail                              |
 
 Internal helpers in this module:
@@ -279,9 +284,15 @@ The whole frontend is one IIFE with no framework. Key pieces:
   4-digit value. The server caps each search at OMDB's top 10 results but
   also returns `totalResults`; when that exceeds the number shown, a
   `.results-note` line above the list ("Showing the top N of M matches — add
-  a year to narrow it down") nudges the user to use the year field. Search
-  state lives in `searchQuery`, `searchYear`, `searchType`, `results`, and
-  `totalResults`, all reset on open and on a movie/series toggle.
+  a year to narrow it down") nudges the user to use the year field. The search
+  box doubles as an IMDb-ID lookup: a query matching `^tt\d+$` skips the title
+  search and goes straight to the detail proxy (`lookupByImdb()` →
+  `applyDetailToForm()` → details step). When OMDB returns the
+  `OMDB_TOO_MANY` error, `state.tooMany` is set and an `.imdb-hint` block
+  renders below the error message pointing the user at that IMDb-ID escape
+  hatch. Search state lives in `searchQuery`, `searchYear`, `searchType`,
+  `results`, `totalResults`, and `tooMany`, all reset on open and on a
+  movie/series toggle.
 - **Edit flow**: loads the disc, populates the same form, sends a PUT with
   multipart body (image optional).
 - **Detail modal**: read-only metadata, ripped toggle, edit & inline-confirm
@@ -485,6 +496,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
+*Last revised: 2026-06-20 (OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; the search box accepts an IMDb ID (`tt…`) for a direct lookup and surfaces that escape hatch when OMDB returns "Too many results"; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
 
 

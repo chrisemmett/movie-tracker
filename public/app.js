@@ -23,6 +23,7 @@
     searching: false,
     searched: false,
     searchError: '',
+    tooMany: false,
     results: [],
     totalResults: 0,
     form: blankForm(),
@@ -536,7 +537,8 @@
     if (state.searching) {
       body = '<div class="loading"><span class="spinner"></span> Searching OMDb…</div>';
     } else if (state.searchError) {
-      body = '<div class="err-msg">' + escapeHtml(state.searchError) + '</div>';
+      body = '<div class="err-msg">' + escapeHtml(state.searchError) + '</div>' +
+        (state.tooMany ? imdbHintHTML() : '');
     } else if (state.searched && state.results.length === 0) {
       body = '<div class="muted-msg">No matches found.</div>';
     } else if (state.results.length) {
@@ -558,7 +560,7 @@
     var typeSeg = function (val, label) {
       return '<button class="seg-btn' + (state.searchType === val ? ' active' : '') + '" data-action="set-search-type" data-val="' + val + '">' + label + '</button>';
     };
-    var placeholder = state.searchType === 'series' ? 'Search a TV series title…' : 'Search a movie title…';
+    var placeholder = (state.searchType === 'series' ? 'Search a TV series title' : 'Search a movie title') + ' or IMDb ID…';
     return '<div class="step">' +
       '<div class="search-type-row">' +
         '<div class="segmented">' +
@@ -573,6 +575,14 @@
       '</div>' + body +
       '<div class="skip-row"><button class="skip-link" data-action="start-manual">Skip — enter details manually</button></div>' +
     '</div>';
+  }
+
+  // Shown when OMDB reports "Too many results": point the user at the IMDb-ID
+  // escape hatch (the same search box accepts an `tt…` code for a direct lookup).
+  function imdbHintHTML() {
+    return '<div class="imdb-hint">Too many matches to list. Add a year above, or paste the ' +
+      'title’s IMDb ID (e.g. <code>tt1175491</code>) into the search box to jump straight ' +
+      'to it — find it in the title’s imdb.com URL.</div>';
   }
 
   function detailsStepHTML() {
@@ -658,7 +668,7 @@
     state.form = blankForm(); state.results = []; state.totalResults = 0;
     state.searchQuery = ''; state.searchYear = '';
     state.searchType = 'movie';
-    state.searched = false; state.searchError = '';
+    state.searched = false; state.searchError = ''; state.tooMany = false;
     state.duplicateWarning = null;
     renderModals();
     var input = document.getElementById('omdbSearch');
@@ -692,9 +702,12 @@
     syncSearchQueryFromDom();
     var q = state.searchQuery.trim();
     if (!q) return;
+    // An IMDb ID typed into the search box is a direct lookup, not a title
+    // search — the escape hatch when a title is too common to list.
+    if (/^tt\d+$/i.test(q)) return lookupByImdb(q.toLowerCase());
     var y = state.searchYear.trim();
-    state.searching = true; state.searchError = ''; state.searched = true;
-    state.results = []; state.totalResults = 0;
+    state.searching = true; state.searchError = ''; state.tooMany = false;
+    state.searched = true; state.results = []; state.totalResults = 0;
     renderModals();
     var url = '/api/omdb/search?q=' + encodeURIComponent(q) + '&type=' + encodeURIComponent(state.searchType);
     if (/^\d{4}$/.test(y)) url += '&y=' + encodeURIComponent(y);
@@ -706,22 +719,45 @@
       state.searching = false; renderModals();
     }).catch(function (err) {
       state.searching = false;
+      state.tooMany = err.code === 'OMDB_TOO_MANY';
       state.searchError = err.message + ' — or add this disc manually below.';
       renderModals();
     });
+  }
+
+  // Look a title up directly by IMDb ID (OMDB's `i` param, via the detail
+  // proxy) and jump to the details form, bypassing the result list entirely.
+  function lookupByImdb(imdbID) {
+    state.searching = true; state.searchError = ''; state.tooMany = false;
+    state.searched = true; state.results = []; state.totalResults = 0;
+    renderModals();
+    api('/api/omdb/detail/' + encodeURIComponent(imdbID)).then(function (d) {
+      applyDetailToForm(d, imdbID, null);
+      state.searching = false; state.step = 'details'; renderModals();
+    }).catch(function (err) {
+      state.searching = false;
+      state.searchError = err.message + ' — check the IMDb ID, or add this disc manually below.';
+      renderModals();
+    });
+  }
+
+  // Populate the add form from an OMDB detail payload. `r` is an optional
+  // matching search-result row used to fall back on title/year/poster.
+  function applyDetailToForm(d, imdbID, r) {
+    state.form = {
+      title: d.title || (r && r.title) || '', sortTitle: '', year: (d.year || (r && r.year) || '').slice(0, 4),
+      formats: state.form.formats.slice(), studio: d.studio || '', distributor: '', ripped: false,
+      poster: d.poster_url || '', director: d.director || '', cast: d.cast || d.actors || '',
+      plot: d.plot || '', genre: d.genre || '', runtime: d.runtime || '', rated: d.rated || '',
+      ratings: d.ratings || [], imdbID: d.imdb_id || imdbID,
+    };
   }
 
   function pickResult(imdbID) {
     var r = state.results.find(function (x) { return x.imdbID === imdbID; });
     state.searching = true; renderModals();
     api('/api/omdb/detail/' + encodeURIComponent(imdbID)).then(function (d) {
-      state.form = {
-        title: d.title || (r && r.title) || '', sortTitle: '', year: (d.year || (r && r.year) || '').slice(0, 4),
-        formats: state.form.formats.slice(), studio: d.studio || '', distributor: '', ripped: false,
-        poster: d.poster_url || '', director: d.director || '', cast: d.cast || d.actors || '',
-        plot: d.plot || '', genre: d.genre || '', runtime: d.runtime || '', rated: d.rated || '',
-        ratings: d.ratings || [], imdbID: d.imdb_id || imdbID,
-      };
+      applyDetailToForm(d, imdbID, r);
       state.searching = false; state.step = 'details'; renderModals();
     }).catch(function () {
       if (r) { state.form.title = r.title; state.form.year = (r.year || '').slice(0, 4); state.form.poster = r.poster || ''; }
@@ -834,7 +870,8 @@
         if (state.searchType === el.dataset.val) return;
         syncSearchQueryFromDom();
         state.searchType = el.dataset.val;
-        state.results = []; state.totalResults = 0; state.searched = false; state.searchError = '';
+        state.results = []; state.totalResults = 0; state.searched = false;
+        state.searchError = ''; state.tooMany = false;
         return renderModals();
       case 'start-manual': syncFormFromDom(); state.step = 'details'; return renderModals();
       case 'back-to-search': state.step = 'search'; return renderModals();

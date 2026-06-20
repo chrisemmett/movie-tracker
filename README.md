@@ -26,10 +26,11 @@ cover art, and enrich each entry with data pulled from
   working even if OMDB is down. Falls back to a generated house-style cover when
   no image exists
 - **OMDB search-and-pick on add**: search by title for either a movie or a TV
-  series (with an optional year to narrow broad searches), choose the match,
-  and details (studio, director, cast, plot, genre, runtime, rating, language,
-  country, and review scores) are fetched and saved locally so they don't
-  depend on OMDB later
+  series (with an optional year to narrow broad searches, or paste an IMDb ID
+  like `tt1175491` to look a title up directly when it's too common to list),
+  choose the match, and details (studio, director, cast, plot, genre, runtime,
+  rating, language, country, and review scores) are fetched and saved locally
+  so they don't depend on OMDB later
 - **Search**, **format filtering**, **Plex-status filtering** (all / ripped /
   not ripped), and **sorting** (recently added / title A–Z / title A–Z by
   custom sort title / year newest) — the chosen sort is remembered in the
