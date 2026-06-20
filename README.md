@@ -1,28 +1,42 @@
 # 🎞 STACKS — Media Library
 
-A self-hosted web app for cataloguing a physical **Blu-ray / 4K UHD** disc
-collection. Built to run in Docker on a NAS with a MySQL database. Browse your
-discs as a **poster wall** or a **shelf of spines**, track studio/distributor,
-flag which discs are **ripped to Plex**, upload your own cover art, and enrich
-each title with data pulled from [OMDB](https://www.omdbapi.com/) and stored
-locally.
+A self-hosted web app for cataloguing a personal **Blu-ray / 4K UHD / Apple TV**
+media collection (physical discs and digital purchases alike). Built to run in
+Docker on a NAS with a MySQL database. Browse your collection as a **poster
+wall**, a **shelf of spines**, or a **stats dashboard**; track
+studio/distributor, flag which titles are **ripped to Plex**, upload your own
+cover art, and enrich each entry with data pulled from
+[OMDB](https://www.omdbapi.com/) and stored locally.
 
 ## Features
 
-- Track **title, year, studio, distributor/label, format** (Blu-ray or 4K UHD)
+- Track **title, sort title, year, studio, distributor/label, and format(s)**.
+  A single title can own **multiple formats** at once (e.g. a Blu-ray *and* a
+  4K UHD edition); supported formats are **Blu-ray**, **4K UHD**, and
+  **Apple TV**, each colour-coded (blue / amber / violet)
 - **Ripped to Plex** flag, toggleable inline from the detail view
-- **Two views** of the collection: a poster **wall** grid and a **shelf** of
-  vertical spines (color-coded by format), with a generated catalog code per disc
+- **Three views** of the collection, with a generated catalog code per entry
+  (`BD 044` / `UHD 012` / `ATV 007`):
+  - a poster **wall** grid (with an **A–Z jump index** when sorted by title)
+  - a **shelf** of vertical spines, colour-coded by format
+  - a **stats** dashboard — totals, combined runtime, average IMDb rating, and
+    top genres / directors / studios / decades, all computed in-browser
 - **Upload cover art** — stored on a Docker volume on your NAS. When you add a
   title via OMDB, its poster is **copied to your NAS** too, so cover art keeps
   working even if OMDB is down. Falls back to a generated house-style cover when
   no image exists
 - **OMDB search-and-pick on add**: search by title for either a movie or a TV
   series, choose the match, and details (studio, director, cast, plot, genre,
-  runtime, rating, and review scores) are fetched and saved locally so they
-  don't depend on OMDB later
-- Search, format filtering, and sorting (recently added / title / year)
+  runtime, rating, language, country, and review scores) are fetched and saved
+  locally so they don't depend on OMDB later
+- **Search**, **format filtering**, **Plex-status filtering** (all / ripped /
+  not ripped), and **sorting** (recently added / title A–Z / year newest)
+- **Duplicate guard** — adding or editing a title that already exists (same
+  title + year) is blocked with an inline warning that links straight to the
+  existing entry
 - Detail modal with metadata, review-score row, edit, and inline-confirm delete
+- **Mobile-friendly** responsive layout — a sticky header, a collapsible
+  toolbar menu, and a three-up wall grid on narrow screens
 
 ## Stack
 
@@ -120,14 +134,15 @@ A single `movies` table. Each row is a disc:
 
 | Field | Notes |
 | --- | --- |
-| `title`, `year` | basic identity |
-| `format` | `bluray` or `uhd` |
+| `title`, `sort_title`, `year` | basic identity (`sort_title` is an optional custom sort key) |
+| `format` | primary format: `bluray`, `uhd`, or `appletv` |
+| `formats` | JSON array of all formats owned, for multi-edition titles |
 | `studio`, `distributor` | production studio + disc label |
 | `ripped` | "Ripped to Plex" flag |
-| `code` | auto-generated catalog code, e.g. `BD 044` / `UHD 012` |
+| `code` | auto-generated catalog code, e.g. `BD 044` / `UHD 012` / `ATV 007` |
 | `image_file` | uploaded cover stored on the NAS volume |
 | `poster_url` | OMDB poster reference |
-| `director`, `actors` (cast), `plot`, `genre`, `runtime`, `rated` | from OMDB |
+| `director`, `actors` (cast), `plot`, `genre`, `runtime`, `rated`, `language`, `country`, `imdb_rating` | from OMDB |
 | `ratings` | JSON array of `{source, value}` review scores |
 | `imdb_id`, `omdb_raw` | IMDb id + archived raw OMDB payload |
 
@@ -137,8 +152,8 @@ A single `movies` table. Each row is a disc:
 | --- | --- | --- |
 | GET | `/api/discs` | list all discs |
 | GET | `/api/discs/:id` | one disc |
-| POST | `/api/discs` | create (multipart; optional `image`) |
-| PUT | `/api/discs/:id` | update (multipart; optional `image`) |
+| POST | `/api/discs` | create (multipart; optional `image`). Returns `409` with `code: DUPLICATE_TITLE` if a title+year match already exists |
+| PUT | `/api/discs/:id` | update (multipart; optional `image`). Same `409` duplicate guard, excluding the row being edited |
 | PATCH | `/api/discs/:id/ripped` | set the ripped flag (`{ripped:bool}`) |
 | DELETE | `/api/discs/:id` | delete (also removes its uploaded image) |
 | GET | `/api/omdb/search?q=&type=` | proxied OMDB title search (`type` is `movie` or `series`, default `movie`) |
@@ -171,4 +186,4 @@ extension checklist. **All new changes must be reflected in that document.**
 - This app has no authentication — keep it on your trusted LAN or put it behind
   a reverse proxy / VPN if you expose it.
 - Design: STACKS, a high-fidelity dark UI (Barlow Condensed / Barlow / Space Mono,
-  amber + Blu-ray-blue accents).
+  with format-coded accents — Blu-ray blue, 4K UHD amber, Apple TV violet).
