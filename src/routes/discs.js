@@ -136,7 +136,10 @@ function bodyToColumns(b) {
 router.get('/api/omdb/search', async (req, res) => {
   try {
     const type = SEARCH_TYPES.includes(req.query.type) ? req.query.type : 'movie';
-    res.json({ results: await omdb.search(req.query.q || '', { type }) });
+    // Optional 4-digit year narrows the OMDB search; ignore anything else.
+    const year = /^\d{4}$/.test(String(req.query.y || '').trim()) ? req.query.y.trim() : undefined;
+    const { results, total } = await omdb.search(req.query.q || '', { type, year });
+    res.json({ results, totalResults: total });
   } catch (err) {
     res.status(err.status || 500).json({ error: err.message });
   }

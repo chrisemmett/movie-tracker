@@ -38,16 +38,22 @@ async function request(params) {
   return data;
 }
 
-// Search by title — returns a lightweight list for the user to pick from.
-async function search(query, { type = 'movie', page = 1 } = {}) {
-  const data = await request({ s: query, type, page });
-  return (data.Search || []).map((r) => ({
+// Search by title — returns a lightweight list for the user to pick from,
+// plus the total number of matches OMDB reports. An optional `year` narrows
+// the search (OMDB's `y` parameter). OMDB only ever returns 10 results per
+// page, so when `total` exceeds the list length the caller is looking at the
+// top 10 of a larger set and can prompt the user to add a year.
+async function search(query, { type = 'movie', year, page = 1 } = {}) {
+  const data = await request({ s: query, type, y: year, page });
+  const results = (data.Search || []).map((r) => ({
     title: r.Title,
     year: r.Year,
     imdbID: r.imdbID,
     type: r.Type,
     poster: r.Poster && r.Poster !== 'N/A' ? r.Poster : null,
   }));
+  const total = Number.parseInt(data.totalResults, 10);
+  return { results, total: Number.isFinite(total) ? total : results.length };
 }
 
 // Normalize OMDB's verbose rating source names to short labels.

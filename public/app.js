@@ -18,11 +18,13 @@
     editId: null,
     step: 'search',
     searchQuery: '',
+    searchYear: '',
     searchType: 'movie',
     searching: false,
     searched: false,
     searchError: '',
     results: [],
+    totalResults: 0,
     form: blankForm(),
     saving: false,
     duplicateWarning: null,
@@ -538,7 +540,11 @@
     } else if (state.searched && state.results.length === 0) {
       body = '<div class="muted-msg">No matches found.</div>';
     } else if (state.results.length) {
-      body = '<div class="results">' + state.results.map(function (r) {
+      var more = state.totalResults > state.results.length
+        ? '<div class="results-note">Showing the top ' + state.results.length + ' of ' +
+            state.totalResults + ' matches — add a year to narrow it down.</div>'
+        : '';
+      body = more + '<div class="results">' + state.results.map(function (r) {
         var has = r.poster;
         var thumb = has
           ? '<img class="result-thumb" src="' + escapeHtml(r.poster) + '" alt="">'
@@ -562,6 +568,7 @@
       '</div>' +
       '<div class="search-row">' +
         '<input id="omdbSearch" class="search-field" placeholder="' + escapeHtml(placeholder) + '" value="' + escapeHtml(state.searchQuery) + '">' +
+        '<input id="omdbYear" class="search-year" type="text" inputmode="numeric" maxlength="4" placeholder="Year" value="' + escapeHtml(state.searchYear) + '">' +
         '<button class="btn-amber" data-action="run-search">Search</button>' +
       '</div>' + body +
       '<div class="skip-row"><button class="skip-link" data-action="start-manual">Skip — enter details manually</button></div>' +
@@ -648,7 +655,8 @@
   function closeDetail() { state.detailId = null; state.confirmDelete = false; renderModals(); }
   function openAdd() {
     state.addOpen = true; state.editId = null; state.step = 'search';
-    state.form = blankForm(); state.results = []; state.searchQuery = '';
+    state.form = blankForm(); state.results = []; state.totalResults = 0;
+    state.searchQuery = ''; state.searchYear = '';
     state.searchType = 'movie';
     state.searched = false; state.searchError = '';
     state.duplicateWarning = null;
@@ -672,22 +680,29 @@
     renderModals();
   }
 
-  // Preserve whatever the user has typed (uncontrolled input) before re-render.
+  // Preserve whatever the user has typed (uncontrolled inputs) before re-render.
   function syncSearchQueryFromDom() {
     var input = document.getElementById('omdbSearch');
     if (input) state.searchQuery = input.value;
+    var yearInput = document.getElementById('omdbYear');
+    if (yearInput) state.searchYear = yearInput.value;
   }
 
   function runSearch() {
     syncSearchQueryFromDom();
     var q = state.searchQuery.trim();
     if (!q) return;
-    state.searching = true; state.searchError = ''; state.searched = true; state.results = [];
+    var y = state.searchYear.trim();
+    state.searching = true; state.searchError = ''; state.searched = true;
+    state.results = []; state.totalResults = 0;
     renderModals();
-    api('/api/omdb/search?q=' + encodeURIComponent(q) + '&type=' + encodeURIComponent(state.searchType)).then(function (data) {
+    var url = '/api/omdb/search?q=' + encodeURIComponent(q) + '&type=' + encodeURIComponent(state.searchType);
+    if (/^\d{4}$/.test(y)) url += '&y=' + encodeURIComponent(y);
+    api(url).then(function (data) {
       state.results = (data.results || []).map(function (r) {
         return { imdbID: r.imdbID, title: r.title, year: r.year, poster: r.poster || '' };
       });
+      state.totalResults = data.totalResults || state.results.length;
       state.searching = false; renderModals();
     }).catch(function (err) {
       state.searching = false;
@@ -819,7 +834,7 @@
         if (state.searchType === el.dataset.val) return;
         syncSearchQueryFromDom();
         state.searchType = el.dataset.val;
-        state.results = []; state.searched = false; state.searchError = '';
+        state.results = []; state.totalResults = 0; state.searched = false; state.searchError = '';
         return renderModals();
       case 'start-manual': syncFormFromDom(); state.step = 'details'; return renderModals();
       case 'back-to-search': state.step = 'search'; return renderModals();
@@ -857,7 +872,7 @@
     if (e.key === 'Escape') {
       if (state.addOpen) { closeAdd(); }
       else if (state.detailId) { closeDetail(); }
-    } else if (e.key === 'Enter' && e.target.id === 'omdbSearch') {
+    } else if (e.key === 'Enter' && (e.target.id === 'omdbSearch' || e.target.id === 'omdbYear')) {
       e.preventDefault(); runSearch();
     }
   }
