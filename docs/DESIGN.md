@@ -118,8 +118,12 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 
 ### 4.3 `src/omdb.js` — OMDB client
 
-- `search(query, { type, page })` → lightweight result list. `type` is
-  whitelisted to `movie` or `series`.
+- `search(query, { type, year, page })` → `{ results, total }` where
+  `results` is the lightweight list (OMDB returns at most 10 per page) and
+  `total` is the count OMDB reports for the whole query. `type` is
+  whitelisted to `movie` or `series`; the optional `year` maps to OMDB's `y`
+  parameter to narrow broad searches. When `total` exceeds `results.length`
+  the caller is looking at the top 10 of a larger set.
 - `detail(imdbID)` → full record. Normalises OMDB's `"N/A"` sentinel into
   `null`, returns ratings as an array of `{ source, value }`.
 - The OMDB API key lives only on the server (`OMDB_API_KEY` env var). The
@@ -146,7 +150,7 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 | PUT    | `/api/discs/:id`              | update; multipart, optional `image` field        |
 | PATCH  | `/api/discs/:id/ripped`       | toggle `ripped` boolean                          |
 | DELETE | `/api/discs/:id`              | delete the row and its uploaded image            |
-| GET    | `/api/omdb/search?q=&type=`   | proxied OMDB search (`type` ∈ `movie`, `series`) |
+| GET    | `/api/omdb/search?q=&type=&y=` | proxied OMDB search (`type` ∈ `movie`, `series`; optional 4-digit `y` year); returns `{ results, totalResults }` |
 | GET    | `/api/omdb/detail/:imdbID`    | proxied OMDB detail                              |
 
 Internal helpers in this module:
@@ -268,9 +272,16 @@ The whole frontend is one IIFE with no framework. Key pieces:
   the markup and a case in the dispatcher.
 - **API layer**: `api(path, opts)` wraps `fetch` with JSON parsing and
   throws on `!response.ok`.
-- **Add flow**: a two-step modal — OMDB search (with movie/series toggle)
-  then a form pre-filled from the chosen result. Posters are sent as URLs;
-  the backend downloads + stores them.
+- **Add flow**: a two-step modal — OMDB search (with movie/series toggle and
+  an optional year field beside the query) then a form pre-filled from the
+  chosen result. Posters are sent as URLs; the backend downloads + stores
+  them. The search request passes `y=<year>` only when the field holds a
+  4-digit value. The server caps each search at OMDB's top 10 results but
+  also returns `totalResults`; when that exceeds the number shown, a
+  `.results-note` line above the list ("Showing the top N of M matches — add
+  a year to narrow it down") nudges the user to use the year field. Search
+  state lives in `searchQuery`, `searchYear`, `searchType`, `results`, and
+  `totalResults`, all reset on open and on a movie/series toggle.
 - **Edit flow**: loads the disc, populates the same form, sends a PUT with
   multipart body (image optional).
 - **Detail modal**: read-only metadata, ripped toggle, edit & inline-confirm
@@ -474,6 +485,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
+*Last revised: 2026-06-20 (OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
 
 

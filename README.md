@@ -26,9 +26,10 @@ cover art, and enrich each entry with data pulled from
   working even if OMDB is down. Falls back to a generated house-style cover when
   no image exists
 - **OMDB search-and-pick on add**: search by title for either a movie or a TV
-  series, choose the match, and details (studio, director, cast, plot, genre,
-  runtime, rating, language, country, and review scores) are fetched and saved
-  locally so they don't depend on OMDB later
+  series (with an optional year to narrow broad searches), choose the match,
+  and details (studio, director, cast, plot, genre, runtime, rating, language,
+  country, and review scores) are fetched and saved locally so they don't
+  depend on OMDB later
 - **Search**, **format filtering**, **Plex-status filtering** (all / ripped /
   not ripped), and **sorting** (recently added / title A–Z / title A–Z by
   custom sort title / year newest) — the chosen sort is remembered in the
@@ -158,7 +159,7 @@ A single `movies` table. Each row is a disc:
 | PUT | `/api/discs/:id` | update (multipart; optional `image`). Same `409` duplicate guard, excluding the row being edited |
 | PATCH | `/api/discs/:id/ripped` | set the ripped flag (`{ripped:bool}`) |
 | DELETE | `/api/discs/:id` | delete (also removes its uploaded image) |
-| GET | `/api/omdb/search?q=&type=` | proxied OMDB title search (`type` is `movie` or `series`, default `movie`) |
+| GET | `/api/omdb/search?q=&type=&y=` | proxied OMDB title search (`type` is `movie` or `series`, default `movie`; optional 4-digit `y` year narrows results). Returns `{ results, totalResults }`; OMDB caps results at the top 10 per page |
 | GET | `/api/omdb/detail/:imdbID` | proxied OMDB detail lookup |
 
 ## Configuration
