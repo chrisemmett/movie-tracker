@@ -241,7 +241,7 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 /* ---------- Modals ---------- */
 .overlay { position: fixed; inset: 0; z-index: 60; background: rgba(4,4,7,0.8); backdrop-filter: blur(7px); display: flex; align-items: center; justify-content: center; padding: 24px; animation: fadeIn .18s ease; }
 .overlay.top { z-index: 70; background: rgba(4,4,7,0.82); align-items: flex-start; padding: 36px 24px; overflow: auto; }
-.dialog { width: min(940px, 100%); max-height: 88vh; display: flex; background: #15151b; border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; overflow: hidden; box-shadow: 0 44px 110px rgba(0,0,0,0.72); animation: fadeUp .22s ease; }
+.dialog { width: min(940px, 100%); height: min(640px, 88vh); display: flex; background: #15151b; border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; overflow: hidden; box-shadow: 0 44px 110px rgba(0,0,0,0.72); animation: fadeUp .22s ease; }
 .dialog-add { width: min(560px, 100%); background: #15151b; border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; overflow: hidden; box-shadow: 0 44px 110px rgba(0,0,0,0.72); animation: fadeUp .22s ease; }
 .close-btn { width: 30px; height: 30px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #cfccc4; font-size: 15px; cursor: pointer; line-height: 1; }
 .close-btn:hover { background: rgba(255,255,255,0.12); }
@@ -259,7 +259,9 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .meta-line { font-family: 'Space Mono', monospace; font-size: 12px; color: #9b988f; margin-top: 8px; }
 .genre-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .genre-chip { font-family: 'Barlow', sans-serif; font-size: 11px; color: #cfccc4; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 4px 11px; }
-.plot { font-family: 'Barlow', sans-serif; font-size: 14px; line-height: 1.55; color: #c4c0b6; margin: 16px 0 0; text-wrap: pretty; }
+/* Synopsis lives in a fixed-height box so the detail dialog stays a constant
+   size regardless of plot length; longer plots scroll internally. */
+.plot { font-family: 'Barlow', sans-serif; font-size: 14px; line-height: 1.55; color: #c4c0b6; margin: 16px 0 0; text-wrap: pretty; height: 132px; overflow-y: auto; padding-right: 10px; }
 .ratings-row { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; padding: 14px 0; border-top: 1px solid rgba(255,255,255,0.08); border-bottom: 1px solid rgba(255,255,255,0.08); }
 .rating-val { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px; line-height: 1; color: #e7b34c; }
 .rating-src { font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d7a72; margin-top: 4px; }
@@ -348,7 +350,7 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .btn-save { background: #e7b34c; color: #0a0a0d; border: none; border-radius: 7px; padding: 11px 22px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; box-shadow: 0 6px 18px rgba(231,179,76,0.25); }
 
 @media (max-width: 720px) {
-  .dialog { flex-direction: column; max-height: 92vh; overflow: auto; }
+  .dialog { flex-direction: column; height: auto; max-height: 92vh; overflow: auto; }
   .detail-cover { flex: 0 0 320px; }
   .az-index { display: none; }
 
@@ -387,7 +389,7 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
   .toolbar-right.open .seg-btn { flex: 1 1 0; text-align: center; }
   .toolbar-right.open .select { width: 100%; }
 
-  /* Tighter wall grid; A–Z gutter is unused once the index is hidden. */
+  /* Fixed 3-up wall grid; A–Z gutter is unused once the index is hidden. */
   .wall-wrap { padding-right: 0; }
-  .wall { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .wall { grid-template-columns: repeat(3, 1fr); gap: 10px; }
 }

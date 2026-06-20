@@ -274,7 +274,11 @@ The whole frontend is one IIFE with no framework. Key pieces:
 - **Edit flow**: loads the disc, populates the same form, sends a PUT with
   multipart body (image optional).
 - **Detail modal**: read-only metadata, ripped toggle, edit & inline-confirm
-  delete.
+  delete. The dialog is a fixed size (`.dialog` has a set `height`, not a
+  `max-height`) so it doesn't grow with the synopsis; the plot (`.plot`) lives
+  in a fixed-height box that scrolls internally when the text overflows. On
+  mobile the dialog stacks vertically and reverts to a `max-height` so it can
+  size to its content.
 - **Filter / sort**: `filteredSorted()` runs client-side; OK because the
   collection is small. The title sort uses `localeCompare` with
   `{ numeric: true }` so embedded numbers compare numerically — "21 Jump
@@ -334,8 +338,9 @@ mobile-friendly: the sticky header is compacted (smaller brand, the stats
 collapse into a single full-width strip, a slimmer Add button), the toolbar
 controls hide behind the `.menu-toggle` button and reflow into a stacked
 full-width dropdown when opened, the A–Z index is hidden (and its
-right-side gutter removed), and the wall grid tightens to
-`minmax(140px, 1fr)`. The same query also stacks the detail/add modals.
+right-side gutter removed), and the wall grid switches to a fixed
+three-up layout (`repeat(3, 1fr)`). The same query also stacks the
+detail/add modals.
 
 ---
 
@@ -446,6 +451,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (mobile-friendly layout: compact sticky header and a collapsible toolbar menu behind a ☰ button on narrow viewports).*
+*Last revised: 2026-06-20 (mobile wall switched to a fixed three-up grid; detail dialog is now a fixed size with an internally-scrolling synopsis).*
 
 
