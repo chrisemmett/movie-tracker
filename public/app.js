@@ -133,10 +133,11 @@
     });
   }
 
-  // The disc's real title with a leading "The " stripped — ignores any custom
-  // sort title. Used by the plain "Title A–Z" sort.
+  // The disc's real title with a leading article ("The ", "A ", "An ")
+  // stripped — ignores any custom sort title. Used by the plain
+  // "Title A–Z" sort.
   function realTitle(d) {
-    return (d && d.title ? d.title : '').replace(/^the\s+/i, '').trim();
+    return (d && d.title ? d.title : '').replace(/^(the|an?)\s+/i, '').trim();
   }
   // A disc sorts by its custom sort title when set (e.g. "Matrix 2" for
   // "The Matrix Reloaded"), otherwise the real title. Used by the
