@@ -285,25 +285,42 @@ The whole frontend is one IIFE with no framework. Key pieces:
   height is unset) so it flows inline — eliminating the nested
   poster/synopsis/body scroll points in favour of one.
 - **Filter / sort**: `filteredSorted()` runs client-side; OK because the
-  collection is small. The title sort uses `localeCompare` with
+  collection is small. Sort options (`SORT_OPTIONS`, the single source of
+  truth for the toolbar `<select>` and for validating persisted values):
+  `added` (recently added, default order), `title` (**default** — "Title
+  A–Z", alphabetises on the real title via `realTitle()`, ignoring any
+  custom sort title), `title-custom` ("Title A–Z (Custom)", alphabetises on
+  `sortableTitle()`, which honours a disc's custom sort title), and `year`
+  (newest first). The alphabetical sorts use `localeCompare` with
   `{ numeric: true }` so embedded numbers compare numerically — "21 Jump
   Street" sorts before "2001: A Space Odyssey" rather than after.
+  `sortKeyTitle()` returns the title the active sort groups by (custom title
+  for `title-custom`, real title otherwise) and backs both the wall's A–Z
+  letter buckets and its jump index.
+- **Session settings**: `state.settings` holds per-browser user preferences,
+  persisted to `localStorage` under the `stacks.settings` key (`loadSettings()`
+  / `saveSettings()`, defaults in `DEFAULT_SETTINGS`). The first stored
+  preference is the active title `sort`; it is read on boot (validated against
+  `SORT_OPTIONS`, falling back to the default if unknown) and rewritten
+  whenever the sort `<select>` changes. There is no server-side persistence —
+  these settings live only in the browser. Add future preferences as new keys
+  on `DEFAULT_SETTINGS`.
 - **Stats view**: aggregates totals, runtime, average IMDb rating, top
   genres / directors / studios / decades — all computed in-browser.
 - **Poster fallback**: if a `<img>` fires `error`, a deterministic
   house-style cover (hue derived from the title hash) is rendered in its
   place.
-- **A–Z jump index**: when the wall view is sorted by title, a `#`–`Z`
-  column is rendered to the right of the grid. It uses `position: fixed`
-  so it stays anchored at the right edge of the centred page wrap and
-  doesn't scroll away when the user reaches the bottom of the list; the
-  wall reserves a right-side gutter so cards don't slide under it.
-  Letters with no matching disc are dimmed; clicking an active letter
-  scrolls the page so the first card whose sortable title starts with it
-  sits just below the sticky header. Cards carry a `data-letter`
-  attribute so the jump can use a simple `querySelector`. The index is
-  hidden for year / recently-added sorts because first letters no longer
-  correlate with row order.
+- **A–Z jump index**: when the wall view is sorted by either title sort
+  (`title` or `title-custom`), a `#`–`Z` column is rendered to the right of
+  the grid. It uses `position: fixed` so it stays anchored at the right edge
+  of the centred page wrap and doesn't scroll away when the user reaches the
+  bottom of the list; the wall reserves a right-side gutter so cards don't
+  slide under it. Letters with no matching disc are dimmed; clicking an
+  active letter scrolls the page so the first card whose active-sort title
+  (`sortKeyTitle()`) starts with it sits just below the sticky header. Cards
+  carry a `data-letter` attribute so the jump can use a simple
+  `querySelector`. The index is hidden for year / recently-added sorts
+  because first letters no longer correlate with row order.
 - **Add modal autofocus**: opening the Add Disc modal focuses the OMDb
   search field immediately so the user can start typing without clicking.
 - **Mobile menu**: on narrow viewports the toolbar's filter / sort / view
@@ -456,6 +473,6 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (mobile detail modal: poster moved to a 5%-opacity backdrop and the body fills the modal as a single scroll region).*
+*Last revised: 2026-06-20 (session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
 
 
