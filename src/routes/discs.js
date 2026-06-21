@@ -11,6 +11,19 @@ const SEARCH_TYPES = ['movie', 'series'];
 
 const CODE_PREFIX = { bluray: 'BD', uhd: 'UHD', appletv: 'ATV' };
 
+// Columns the list route projects — exactly the fields `toDisc()` reads. The
+// whole collection is shipped on every page load, so we avoid `SELECT *`: it
+// would also pull `omdb_raw` (a full archived OMDB response, kilobytes per row
+// and never sent to the client) plus other detail-only columns
+// (`writer`, `released`, `language`, `country`, `imdb_rating`, `updated_at`).
+// At ~2000 rows that trims megabytes off the DB→Node transfer.
+const LIST_COLUMNS = [
+  'id', 'code', 'created_at', 'title', 'sort_title', 'year', 'format',
+  'formats', 'studio', 'distributor', 'ripped', 'image_file', 'poster_url',
+  'director', 'actors', 'plot', 'genre', 'runtime', 'rated', 'ratings',
+  'imdb_id',
+].join(', ');
+
 function genCode(format, n) {
   return (CODE_PREFIX[format] || 'BD') + ' ' + String(n).padStart(3, '0');
 }
@@ -157,7 +170,9 @@ router.get('/api/omdb/detail/:imdbID', async (req, res) => {
 
 router.get('/api/discs', async (req, res, next) => {
   try {
-    const [rows] = await getPool().query('SELECT * FROM movies ORDER BY created_at DESC, id DESC');
+    const [rows] = await getPool().query(
+      `SELECT ${LIST_COLUMNS} FROM movies ORDER BY created_at DESC, id DESC`
+    );
     res.json({ discs: rows.map(toDisc) });
   } catch (err) {
     next(err);

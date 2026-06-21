@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS movies (
   updated_at    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
   INDEX idx_title (title),
-  INDEX idx_format (format)
+  INDEX idx_format (format),
+  INDEX idx_created (created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 `;
 
@@ -68,6 +69,31 @@ const ADDED_COLUMNS = [
   { name: 'sort_title', ddl: "ADD COLUMN sort_title VARCHAR(255) NULL AFTER title" },
   { name: 'formats', ddl: "ADD COLUMN formats JSON NULL AFTER format" },
 ];
+
+// Indexes added after the original release. Like ADDED_COLUMNS, this lets an
+// existing install pick up new indexes on boot without a manual migration.
+// MySQL has no portable "CREATE INDEX IF NOT EXISTS", so we probe
+// information_schema first.
+const ADDED_INDEXES = [
+  // Backs the list route's `ORDER BY created_at DESC, id DESC`, which is run on
+  // every page load and returns the whole collection.
+  { name: 'idx_created', ddl: 'ADD INDEX idx_created (created_at, id)' },
+];
+
+async function ensureIndexes(conn) {
+  const dbName = process.env.DB_NAME || 'movietracker';
+  for (const idx of ADDED_INDEXES) {
+    const [rows] = await conn.query(
+      `SELECT 1 FROM information_schema.statistics
+       WHERE table_schema = ? AND table_name = 'movies' AND index_name = ? LIMIT 1`,
+      [dbName, idx.name]
+    );
+    if (!rows.length) {
+      await conn.query(`ALTER TABLE movies ${idx.ddl}`);
+      console.log(`Added index movies.${idx.name}`);
+    }
+  }
+}
 
 async function ensureColumns(conn) {
   const dbName = process.env.DB_NAME || 'movietracker';
@@ -106,6 +132,7 @@ async function initDb({ retries = 10, delayMs = 3000 } = {}) {
       try {
         await conn.query(SCHEMA);
         await ensureColumns(conn);
+        await ensureIndexes(conn);
         console.log('Database ready, schema ensured.');
         return;
       } finally {

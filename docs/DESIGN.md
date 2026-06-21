@@ -109,12 +109,17 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 - `initDb()` retries the connection (10 × 3s backoff) until MySQL is ready,
   then runs:
   1. `CREATE TABLE IF NOT EXISTS movies (...)` — base schema.
-  2. A list of idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` calls
+  2. A list of idempotent `ALTER TABLE ... ADD COLUMN` calls
      (`ADDED_COLUMNS`) so new columns roll out without manual migrations.
-  3. Index creation (`title`, `format`).
+  3. Index creation (`title`, `format`, and the composite `created_at, id`).
+  4. `ensureIndexes()` — the same idempotent pattern as `ensureColumns()` but
+     for indexes (`ADDED_INDEXES`). MySQL lacks a portable `CREATE INDEX IF NOT
+     EXISTS`, so it probes `information_schema.statistics` before adding each
+     one. This is how existing installs pick up `idx_created` without a manual
+     migration.
 - **No ORM, no external migration tool.** When you add a column, add it to
   `ADDED_COLUMNS` so existing deployments pick it up on next boot. Document
-  the column in §5 below.
+  the column in §5 below. New indexes go in `ADDED_INDEXES` the same way.
 
 ### 4.3 `src/omdb.js` — OMDB client
 
@@ -149,7 +154,7 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 
 | Method | Path                          | Purpose                                          |
 | ------ | ----------------------------- | ------------------------------------------------ |
-| GET    | `/api/discs`                  | list all discs, newest first                     |
+| GET    | `/api/discs`                  | list all discs, newest first (lightweight projection — see `LIST_COLUMNS`) |
 | GET    | `/api/discs/:id`              | one disc                                         |
 | POST   | `/api/discs`                  | create; multipart, optional `image` field        |
 | PUT    | `/api/discs/:id`              | update; multipart, optional `image` field        |
@@ -157,6 +162,16 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 | DELETE | `/api/discs/:id`              | delete the row and its uploaded image            |
 | GET    | `/api/omdb/search?q=&type=&y=` | proxied OMDB search (`type` ∈ `movie`, `series`; optional 4-digit `y` year); returns `{ results, totalResults }`. Errors forward OMDB's `code` (e.g. `OMDB_TOO_MANY`) |
 | GET    | `/api/omdb/detail/:imdbID`    | proxied OMDB detail                              |
+
+The list route ships the **entire collection** on every page load, so it
+projects an explicit column list (`LIST_COLUMNS`) instead of `SELECT *`. The
+projection is exactly the set of columns `toDisc()` reads; it deliberately
+omits `omdb_raw` (a full archived OMDB response, kilobytes per row, never sent
+to the client) and other detail-only columns (`writer`, `released`, `language`,
+`country`, `imdb_rating`, `updated_at`). At ~2000 rows this trims megabytes off
+the DB→Node transfer. **If you teach `toDisc()` to read a new column, add it to
+`LIST_COLUMNS` too**, or the list will silently return it as `undefined` while
+the single-disc route (which still uses `SELECT *`) works fine.
 
 Internal helpers in this module:
 
@@ -222,7 +237,8 @@ The whole app is one table. Each row is one physical disc.
 | `created_at`  | TIMESTAMP           | defaults to now                                         |
 | `updated_at`  | TIMESTAMP           | auto-updates                                            |
 
-Indexes: `title`, `format`.
+Indexes: `title`, `format`, and `idx_created (created_at, id)` — the last backs
+the list route's `ORDER BY created_at DESC, id DESC`.
 
 **When adding a column:** add the `ALTER TABLE` to `ADDED_COLUMNS` in
 `src/db.js`, surface it through `toDisc()` and `bodyToColumns()` in
@@ -306,8 +322,20 @@ The whole frontend is one IIFE with no framework. Key pieces:
   single scroll region. The synopsis loses its internal scroll box (`.plot`
   height is unset) so it flows inline — eliminating the nested
   poster/synopsis/body scroll points in favour of one.
-- **Filter / sort**: `filteredSorted()` runs client-side; OK because the
-  collection is small. Sort options (`SORT_OPTIONS`, the single source of
+- **Large-catalog performance**: the app loads the whole collection into
+  memory and renders client-side, which is designed to stay smooth into the
+  low thousands of titles. Three things make that hold: (1) the search box is
+  **debounced** — `onInput()` updates `state.query` immediately but defers the
+  expensive `renderContent()` rebuild by 120 ms, so typing doesn't rebuild the
+  wall on every keystroke (the search input lives in the toolbar, which
+  `renderContent()` never touches, so it keeps focus across renders); (2) card
+  posters are lazy (`loading="lazy" decoding="async"`, see `posterOrHouse()`)
+  so a wall of ~2000 cards doesn't fetch/decode every image up front; (3) the
+  off-screen skipping in CSS (`content-visibility`, see §6.3) means only
+  on-screen cards/spines cost layout and paint. The backend half of this is the
+  `LIST_COLUMNS` projection (see §4.5).
+- **Filter / sort**: `filteredSorted()` runs client-side; an O(n log n) pass
+  that stays cheap into the low thousands of titles. Sort options (`SORT_OPTIONS`, the single source of
   truth for the toolbar `<select>` and for validating persisted values):
   `added` (recently added, default order), `title` (**default** — "Title
   A–Z", alphabetises on the real title via `realTitle()`, which strips a
@@ -376,6 +404,13 @@ The whole frontend is one IIFE with no framework. Key pieces:
 Single monolithic dark theme. Format-coded accents — amber for UHD, blue
 for Blu-ray, violet for Apple TV. CSS custom properties (`--accent`) drive
 per-format colouring; the wall grid is `repeat(auto-fill, minmax(155px, 1fr))`.
+
+`.card` and `.spine` set `content-visibility: auto` with a `contain-intrinsic-size`
+placeholder (`auto 260px` for cards, the fixed `52px 288px` for spines) so the
+browser skips layout and paint for off-screen items — near-virtualization for
+the wall/shelf that keeps the A–Z jump and in-page find working because every
+node still exists in the DOM. The intrinsic size is tuned to the real rendered
+card height so the scrollbar and `jumpToLetter()` offsets stay accurate.
 
 The header + toolbar are wrapped in a `.site-header` container that uses
 `position: sticky; top: 0` with a translucent backdrop-blurred background,
@@ -501,6 +536,11 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-20 (dashboard Plex-status figures now exclude Apple TV-only titles, which can't be ripped, via `isRippable()`; OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; the search box accepts an IMDb ID (`tt…`) for a direct lookup and surfaces that escape hatch when OMDB returns "Too many results"; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
+*Last revised: 2026-06-21 (large-catalog performance pass for ~2000-title collections:
+the list route now projects an explicit `LIST_COLUMNS` set instead of `SELECT *` (drops the
+heavy unused `omdb_raw` and other detail-only columns); added the `idx_created (created_at, id)`
+index via a new idempotent `ensureIndexes()`/`ADDED_INDEXES` path; the client lazy-loads card
+posters, debounces the search box, and uses `content-visibility` on cards/spines to skip
+off-screen layout & paint. Previous: dashboard Plex-status figures now exclude Apple TV-only titles, which can't be ripped, via `isRippable()`; OMDB search gained an optional year filter (`y`) and now returns `totalResults` so the add modal can show "top 10 of N" when a search is too broad; the search box accepts an IMDb ID (`tt…`) for a direct lookup and surfaces that escape hatch when OMDB returns "Too many results"; alphabetical sorts now strip a leading "A "/"An " article in addition to "The "; session settings persisted to localStorage starting with the title sort; added a real-title "Title A–Z" default sort alongside the custom-aware "Title A–Z (Custom)").*
 
 
