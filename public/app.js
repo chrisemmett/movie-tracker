@@ -179,7 +179,9 @@
   function posterOrHouse(d, variant) {
     var showPoster = d.poster && !state.imgBroken.has(d.poster);
     if (showPoster) {
-      return '<img class="card-img" data-poster="' + escapeHtml(d.poster) + '" src="' + escapeHtml(d.poster) + '" alt="">';
+      // Lazy + async decode so a 2000-card wall doesn't fetch/decode every
+      // poster up front; off-screen cards load as they scroll into view.
+      return '<img class="card-img" loading="lazy" decoding="async" data-poster="' + escapeHtml(d.poster) + '" src="' + escapeHtml(d.poster) + '" alt="">';
     }
     var initial = (d.title || '?').trim().charAt(0).toUpperCase();
     return houseHTML(hashHue(d.title), initial, variant);
@@ -902,8 +904,17 @@
     }
   }
 
+  // Re-rendering the whole wall on every keystroke is wasteful at thousands of
+  // cards, so update the query immediately (so nothing is lost) but debounce
+  // the expensive filter + rebuild. The search input lives in the toolbar,
+  // which renderContent() doesn't touch, so it keeps focus between renders.
+  var searchDebounce = null;
   function onInput(e) {
-    if (e.target.id === 'searchInput') { state.query = e.target.value; renderContent(); }
+    if (e.target.id === 'searchInput') {
+      state.query = e.target.value;
+      if (searchDebounce) clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(function () { searchDebounce = null; renderContent(); }, 120);
+    }
   }
   function onChange(e) {
     if (e.target.id === 'sortSelect') {
