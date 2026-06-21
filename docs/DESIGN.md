@@ -288,6 +288,11 @@ The whole frontend is one IIFE with no framework. Key pieces:
   `renderToolbar()`, `renderContent()`, `renderModals()` — that build HTML
   strings and assign them via `innerHTML`. Re-renders happen by calling
   these after each state mutation; the whole region is replaced (no diff).
+  Because `renderModals()` rebuilds the overlay/dialog nodes on every
+  interaction, their `fadeIn`/`fadeUp` entrance animations would replay and
+  flash on each click; `renderModals()` tracks which modals were already
+  mounted and adds a `.no-anim` class so a modal only animates on the render
+  that first opens it.
 - **Event handling**: delegated through `[data-action]` attributes on a
   single root listener. New actions are added by adding `data-action="…"` to
   the markup and a case in the dispatcher.
@@ -562,7 +567,9 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-21 (the add flow now remembers the last-used format
+*Last revised: 2026-06-21 (modal re-renders now skip the `fadeIn`/`fadeUp`
+entrance animation via a `.no-anim` class so clicking buttons inside an open
+modal no longer flashes. Previous: the add flow now remembers the last-used format
 selection (`addFormats` session setting) to pre-fill the next add, and gained a
 multi-add batch flow: a `+` on each OMDB search row collects titles into
 `state.selected`, "Add all" opens a shared format/Plex step (`multiStepHTML()`),
