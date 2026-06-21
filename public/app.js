@@ -493,6 +493,17 @@
         '<button class="btn-neutral" data-action="detail-cancel-delete">Keep</button>'
       : '<button class="btn-del-outline" data-action="detail-ask-delete">Delete</button>';
 
+    // Apple TV-only titles are digital-only and can't be ripped to Plex, so
+    // the rip toggle is replaced with an explanatory notice.
+    var ripControl = isRippable(d)
+      ? '<button class="rip-toggle' + (d.ripped ? ' on' : '') + '" data-action="detail-toggle-rip" data-id="' + d.id + '">' +
+          '<span class="rip-dot">▶</span><span class="rip-text">' + (d.ripped ? 'Ripped to Plex' : 'Not ripped') + '</span>' +
+        '</button>'
+      : '<div class="rip-blocked">' +
+          '<span class="rip-blocked-icon">⛔</span>' +
+          '<span class="rip-blocked-text">Can’t be ripped to Plex — Apple TV is digital-only.</span>' +
+        '</div>';
+
     return '<div class="overlay" data-action="overlay" data-modal="detail">' +
       '<div class="dialog">' +
         '<div class="detail-cover">' + posterOrHouse(d, 'detail') + '</div>' +
@@ -518,9 +529,7 @@
             infoCell('Distributor / Label', d.distributor || '—') +
           '</div>' +
           '<div class="actions-row">' +
-            '<button class="rip-toggle' + (d.ripped ? ' on' : '') + '" data-action="detail-toggle-rip" data-id="' + d.id + '">' +
-              '<span class="rip-dot">▶</span><span class="rip-text">' + (d.ripped ? 'Ripped to Plex' : 'Not ripped') + '</span>' +
-            '</button>' +
+            ripControl +
             '<div class="actions-right">' +
               '<button class="btn-neutral" data-action="detail-edit" data-id="' + d.id + '">Edit</button>' + del +
             '</div>' +
