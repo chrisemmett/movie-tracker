@@ -312,7 +312,10 @@ The whole frontend is one IIFE with no framework. Key pieces:
 - **Edit flow**: loads the disc, populates the same form, sends a PUT with
   multipart body (image optional).
 - **Detail modal**: read-only metadata, ripped toggle, edit & inline-confirm
-  delete. The dialog is a fixed size (`.dialog` has a set `height`, not a
+  delete. For Apple TV-only titles (`!isRippable(d)`) the ripped toggle is
+  replaced with a non-interactive `.rip-blocked` notice ("Can't be ripped to
+  Plex — Apple TV is digital-only.") in the Apple TV violet accent, since
+  digital-only titles can't be ripped. The dialog is a fixed size (`.dialog` has a set `height`, not a
   `max-height`) so it doesn't grow with the synopsis; the plot (`.plot`) lives
   in a fixed-height box that scrolls internally when the text overflows. On
   mobile the layout flips: the dialog is a fixed-height box with
@@ -536,7 +539,9 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-21 (large-catalog performance pass for ~2000-title collections:
+*Last revised: 2026-06-21 (detail modal now replaces the ripped toggle with a
+`.rip-blocked` notice for Apple TV-only titles, which are digital-only and can't
+be ripped to Plex. Previous: large-catalog performance pass for ~2000-title collections:
 the list route now projects an explicit `LIST_COLUMNS` set instead of `SELECT *` (drops the
 heavy unused `omdb_raw` and other detail-only columns); added the `idx_created (created_at, id)`
 index via a new idempotent `ensureIndexes()`/`ADDED_INDEXES` path; the client lazy-loads card

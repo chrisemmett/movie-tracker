@@ -284,6 +284,9 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .rip-toggle.on .rip-dot { background: #e7b34c; }
 .rip-text { font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 13px; color: #9b988f; }
 .rip-toggle.on .rip-text { color: #e7b34c; }
+.rip-blocked { display: flex; align-items: center; gap: 9px; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.4); border-radius: 999px; padding: 8px 15px; }
+.rip-blocked-icon { font-size: 13px; line-height: 1; }
+.rip-blocked-text { font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 13px; color: #a78bfa; }
 .btn-neutral { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: #e9e6df; border-radius: 7px; padding: 9px 16px; font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; }
 .btn-neutral:hover { background: rgba(255,255,255,0.13); }
 .btn-del-outline { background: transparent; border: 1px solid rgba(216,72,63,0.4); color: #d8483f; border-radius: 7px; padding: 9px 14px; font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; }
