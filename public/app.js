@@ -502,6 +502,10 @@
     document.getElementById('modals').innerHTML = html;
     modalMounted.detail = !!state.detailId;
     modalMounted.add = !!state.addOpen;
+    // Lock background scroll while any modal is open so the title list behind
+    // the overlay stays put. The overlay (and `.overlay.top`) is its own
+    // scroll container, so tall modals still scroll internally.
+    document.body.classList.toggle('modal-open', !!(state.detailId || state.addOpen));
   }
 
   function detailModalHTML(mounted) {
