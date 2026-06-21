@@ -31,6 +31,10 @@
     duplicateWarning: null,
     imgBroken: new Set(),
     menuOpen: false,
+    selected: {},
+    multiForm: { formats: ['bluray'], ripped: false },
+    multiSaving: false,
+    multiDone: 0,
   };
 
   var root = document.getElementById('app');
@@ -59,7 +63,7 @@
   // Session-level user preferences live here so the app can remember choices
   // like the active sort across reloads. Add new keys to DEFAULT_SETTINGS.
   var SETTINGS_KEY = 'stacks.settings';
-  var DEFAULT_SETTINGS = { sort: 'title' };
+  var DEFAULT_SETTINGS = { sort: 'title', addFormats: ['bluray'] };
   function loadSettings() {
     var saved = {};
     try {
@@ -68,11 +72,26 @@
     } catch (e) { /* private mode / corrupt value — fall back to defaults */ }
     var s = Object.assign({}, DEFAULT_SETTINGS, saved);
     if (!isValidSort(s.sort)) s.sort = DEFAULT_SETTINGS.sort;
+    s.addFormats = Array.isArray(s.addFormats) ? s.addFormats.filter(function (f) { return FMT_META[f]; }) : [];
+    if (!s.addFormats.length) s.addFormats = DEFAULT_SETTINGS.addFormats.slice();
     return s;
   }
   function saveSettings() {
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
     catch (e) { /* ignore quota / disabled storage */ }
+  }
+  // The format selection to pre-fill when adding a new title — the last one the
+  // user saved with, so adding a run of same-format discs needs no re-picking.
+  function rememberedFormats() {
+    var f = state.settings.addFormats;
+    return (Array.isArray(f) && f.length) ? f.slice() : ['bluray'];
+  }
+  function rememberFormats(formats) {
+    if (Array.isArray(formats) && formats.length) {
+      state.settings.addFormats = formats.filter(function (f) { return FMT_META[f]; });
+      if (!state.settings.addFormats.length) state.settings.addFormats = ['bluray'];
+      saveSettings();
+    }
   }
   function fmtMeta(f) { return FMT_META[f] || FMT_META.bluray; }
   function discFormats(d) {
@@ -547,7 +566,9 @@
       '<div class="dialog-add">' +
         '<div class="modal-head"><div class="modal-title">' + title + '</div>' +
           '<button class="close-btn" data-action="close-add">✕</button></div>' +
-        (state.step === 'search' ? searchStepHTML() : detailsStepHTML()) +
+        (state.step === 'search' ? searchStepHTML()
+          : state.step === 'multi' ? multiStepHTML()
+          : detailsStepHTML()) +
       '</div></div>';
   }
 
@@ -570,10 +591,17 @@
         var thumb = has
           ? '<img class="result-thumb" src="' + escapeHtml(r.poster) + '" alt="">'
           : '<div class="result-thumb-ph">▦</div>';
-        return '<button class="result-btn" data-action="pick-result" data-imdb="' + escapeHtml(r.imdbID) + '">' +
-          thumb +
-          '<div><div class="result-title">' + escapeHtml(r.title) + '</div>' +
-          '<div class="result-year">' + escapeHtml(r.year) + '</div></div></button>';
+        var sel = !!state.selected[r.imdbID];
+        // The row picks a single title (→ details step, as before); the trailing
+        // + button batch-selects it for the multi-add flow. They are sibling
+        // buttons so the row click and the + click never collide.
+        return '<div class="result-row' + (sel ? ' selected' : '') + '">' +
+          '<button class="result-btn" data-action="pick-result" data-imdb="' + escapeHtml(r.imdbID) + '">' +
+            thumb +
+            '<div><div class="result-title">' + escapeHtml(r.title) + '</div>' +
+            '<div class="result-year">' + escapeHtml(r.year) + '</div></div></button>' +
+          '<button class="result-add' + (sel ? ' on' : '') + '" data-action="toggle-result" data-imdb="' + escapeHtml(r.imdbID) + '" title="' + (sel ? 'Selected — click to remove from batch' : 'Add to batch') + '" aria-label="' + (sel ? 'Remove from batch' : 'Add to batch') + '" aria-pressed="' + (sel ? 'true' : 'false') + '">' + (sel ? '✓' : '+') + '</button>' +
+        '</div>';
       }).join('') + '</div>';
     }
     var typeSeg = function (val, label) {
@@ -592,8 +620,20 @@
         '<input id="omdbYear" class="search-year" type="text" inputmode="numeric" maxlength="4" placeholder="Year" value="' + escapeHtml(state.searchYear) + '">' +
         '<button class="btn-amber" data-action="run-search">Search</button>' +
       '</div>' + body +
-      '<div class="skip-row"><button class="skip-link" data-action="start-manual">Skip — enter details manually</button></div>' +
+      skipRowHTML() +
     '</div>';
+  }
+
+  // The footer link below the search results. With no titles batch-selected it
+  // is the "skip to manual entry" escape hatch; once one or more results are
+  // ticked it becomes "Add all", which carries the batch into the multi-add
+  // step (shared formats + Plex status for every selected title).
+  function skipRowHTML() {
+    var n = Object.keys(state.selected).length;
+    if (n > 0) {
+      return '<div class="skip-row"><button class="add-all-link" data-action="add-all">Add all (' + n + ') →</button></div>';
+    }
+    return '<div class="skip-row"><button class="skip-link" data-action="start-manual">Skip — enter details manually</button></div>';
   }
 
   // Shown when OMDB reports "Too many results": point the user at the IMDb-ID
@@ -602,6 +642,53 @@
     return '<div class="imdb-hint">Too many matches to list. Add a year above, or paste the ' +
       'title’s IMDb ID (e.g. <code>tt1175491</code>) into the search box to jump straight ' +
       'to it — find it in the title’s imdb.com URL.</div>';
+  }
+
+  // Multi-add step: one shared format + Plex-status choice applied to every
+  // batch-selected title. Reached from the search step's "Add all" link.
+  function multiStepHTML() {
+    var items = Object.keys(state.selected).map(function (k) { return state.selected[k]; });
+    var n = items.length;
+    var fmts = Array.isArray(state.multiForm.formats) ? state.multiForm.formats : [];
+    var has = function (k) { return fmts.indexOf(k) >= 0; };
+    var fr = !!state.multiForm.ripped;
+    var fmtOpt = function (key, dotCls, selCls, label) {
+      return '<button class="fmt-opt' + (has(key) ? ' ' + selCls : '') + '" data-action="multi-format" data-fmt="' + key + '">' +
+        '<span class="fmt-opt-dot ' + dotCls + '"></span><span class="fmt-opt-text">' + label + '</span></button>';
+    };
+    var list = '<div class="multi-list">' + items.map(function (r) {
+      var thumb = r.poster
+        ? '<img class="result-thumb" src="' + escapeHtml(r.poster) + '" alt="">'
+        : '<div class="result-thumb-ph">▦</div>';
+      return '<div class="multi-item">' + thumb +
+        '<div class="multi-item-info"><div class="result-title">' + escapeHtml(r.title) + '</div>' +
+        '<div class="result-year">' + escapeHtml(r.year) + '</div></div>' +
+        '<button class="result-add on" data-action="toggle-result" data-imdb="' + escapeHtml(r.imdbID) + '" title="Remove from batch" aria-label="Remove from batch">✕</button>' +
+      '</div>';
+    }).join('') + '</div>';
+    var saveLabel = state.multiSaving
+      ? 'Adding ' + state.multiDone + ' / ' + n + '…'
+      : 'Save ' + n + ' title' + (n === 1 ? '' : 's');
+    return '<div class="step">' +
+      '<div class="multi-head">Pick the format and Plex status to apply to all ' + n + ' selected title' + (n === 1 ? '' : 's') + '.</div>' +
+      list +
+      '<div class="fmt-rip-row">' +
+        '<div><label class="field-label">Formats (one or more)</label><div class="fmt-opts">' +
+          fmtOpt('bluray',  'blu', 'sel-blu', 'Blu-ray') +
+          fmtOpt('uhd',     'uhd', 'sel-uhd', '4K UHD') +
+          fmtOpt('appletv', 'atv', 'sel-atv', 'Apple TV') +
+        '</div></div>' +
+        '<div><label class="field-label">Ripped to Plex</label>' +
+          '<button class="rip-pill' + (fr ? ' on' : '') + '" data-action="multi-ripped">' +
+            '<span class="rip-dot">▶</span><span class="rip-text">' + (fr ? 'Yes — in Plex' : 'Not ripped') + '</span>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="footer-row">' +
+        '<button class="back-link" data-action="back-to-search"' + (state.multiSaving ? ' disabled' : '') + '>← Back to search</button>' +
+        '<button class="btn-save" data-action="save-multi"' + (state.multiSaving ? ' disabled' : '') + '>' + saveLabel + '</button>' +
+      '</div>' +
+    '</div>';
   }
 
   function detailsStepHTML() {
@@ -684,11 +771,15 @@
   function closeDetail() { state.detailId = null; state.confirmDelete = false; renderModals(); }
   function openAdd() {
     state.addOpen = true; state.editId = null; state.step = 'search';
-    state.form = blankForm(); state.results = []; state.totalResults = 0;
+    state.form = blankForm(); state.form.formats = rememberedFormats();
+    state.results = []; state.totalResults = 0;
     state.searchQuery = ''; state.searchYear = '';
     state.searchType = 'movie';
     state.searched = false; state.searchError = ''; state.tooMany = false;
     state.duplicateWarning = null;
+    state.selected = {};
+    state.multiForm = { formats: rememberedFormats(), ripped: false };
+    state.multiSaving = false; state.multiDone = 0;
     renderModals();
     var input = document.getElementById('omdbSearch');
     if (input) input.focus();
@@ -817,8 +908,11 @@
     fd.append('ratings', JSON.stringify(f.ratings || []));
     if (file) fd.append('image', file);
 
-    var url = state.editId ? '/api/discs/' + state.editId : '/api/discs';
-    api(url, { method: state.editId ? 'PUT' : 'POST', body: fd }).then(function () {
+    var editing = state.editId;
+    var url = editing ? '/api/discs/' + editing : '/api/discs';
+    api(url, { method: editing ? 'PUT' : 'POST', body: fd }).then(function () {
+      // Remember the format picks so the next add pre-fills them.
+      if (!editing) rememberFormats(fmts);
       state.saving = false; state.addOpen = false; state.editId = null;
       return loadDiscs();
     }).then(renderModals).catch(function (err) {
@@ -838,6 +932,76 @@
       renderModals();
       alert('Could not save: ' + err.message);
     });
+  }
+
+  // Build the multipart body for one disc from a batch-selected search result
+  // (`r`) enriched with its OMDB detail (`d`, may be null if the lookup failed),
+  // plus the batch's shared formats / ripped choice.
+  function buildDiscFormData(r, d, fmts, ripped) {
+    var f = {
+      title: (d && d.title) || r.title || '',
+      year: (((d && d.year) || r.year || '') + '').slice(0, 4),
+      studio: (d && d.studio) || '',
+      director: (d && d.director) || '',
+      cast: (d && (d.cast || d.actors)) || '',
+      plot: (d && d.plot) || '',
+      genre: (d && d.genre) || '',
+      runtime: (d && d.runtime) || '',
+      rated: (d && d.rated) || '',
+      imdbID: (d && d.imdb_id) || r.imdbID || '',
+      poster: (d && d.poster_url) || r.poster || '',
+      ratings: (d && d.ratings) || [],
+    };
+    var fd = new FormData();
+    ['title', 'sortTitle', 'year', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
+      .forEach(function (k) { fd.append(k, f[k] || ''); });
+    fmts.forEach(function (fm) { fd.append('formats', fm); });
+    fd.append('ripped', ripped ? 'true' : 'false');
+    fd.append('poster', f.poster || '');
+    fd.append('ratings', JSON.stringify(f.ratings || []));
+    return fd;
+  }
+
+  // Add every batch-selected title in turn, sharing the format / Plex choice.
+  // Each title is enriched from its OMDB detail (best-effort) before the POST;
+  // duplicates (409) and other failures are tallied rather than aborting the run.
+  function saveMulti() {
+    var items = Object.keys(state.selected).map(function (k) { return state.selected[k]; });
+    if (!items.length) return;
+    var fmts = (Array.isArray(state.multiForm.formats) && state.multiForm.formats.length) ? state.multiForm.formats : ['bluray'];
+    var ripped = !!state.multiForm.ripped;
+    state.multiSaving = true; state.multiDone = 0;
+    renderModals();
+    rememberFormats(fmts);
+
+    var added = 0, dupes = 0, failed = 0;
+    function addOne(idx) {
+      if (idx >= items.length) {
+        state.multiSaving = false; state.addOpen = false; state.editId = null;
+        state.selected = {};
+        return loadDiscs().then(function () {
+          renderModals();
+          var msg = 'Added ' + added + ' title' + (added === 1 ? '' : 's') + ' to the stacks.';
+          if (dupes) msg += '\n' + dupes + ' skipped — already in your collection.';
+          if (failed) msg += '\n' + failed + ' could not be added.';
+          alert(msg);
+        });
+      }
+      var r = items[idx];
+      return api('/api/omdb/detail/' + encodeURIComponent(r.imdbID))
+        .catch(function () { return null; })
+        .then(function (d) {
+          return api('/api/discs', { method: 'POST', body: buildDiscFormData(r, d, fmts, ripped) })
+            .then(function () { added++; })
+            .catch(function (err) { if (err.code === 'DUPLICATE_TITLE') dupes++; else failed++; });
+        })
+        .then(function () {
+          state.multiDone = idx + 1;
+          if (state.step === 'multi') renderModals();
+          return addOne(idx + 1);
+        });
+    }
+    return addOne(0);
   }
 
   function toggleRipped(id) {
@@ -895,6 +1059,34 @@
       case 'start-manual': syncFormFromDom(); state.step = 'details'; return renderModals();
       case 'back-to-search': state.step = 'search'; return renderModals();
       case 'pick-result': return pickResult(el.dataset.imdb);
+      case 'toggle-result': {
+        syncSearchQueryFromDom();
+        var imdb = el.dataset.imdb;
+        if (state.selected[imdb]) {
+          delete state.selected[imdb];
+        } else {
+          var sr = state.results.find(function (x) { return x.imdbID === imdb; });
+          if (sr) state.selected[imdb] = { imdbID: sr.imdbID, title: sr.title, year: sr.year, poster: sr.poster };
+        }
+        // Removing the last batch item from the multi step drops back to search.
+        if (state.step === 'multi' && Object.keys(state.selected).length === 0) state.step = 'search';
+        return renderModals();
+      }
+      case 'add-all':
+        syncSearchQueryFromDom();
+        if (Object.keys(state.selected).length === 0) return;
+        state.step = 'multi';
+        return renderModals();
+      case 'multi-format': {
+        var mkey = el.dataset.fmt;
+        var mcur = Array.isArray(state.multiForm.formats) ? state.multiForm.formats.slice() : [];
+        var mi = mcur.indexOf(mkey);
+        if (mi >= 0) { if (mcur.length > 1) mcur.splice(mi, 1); } else { mcur.push(mkey); }
+        state.multiForm.formats = mcur;
+        return renderModals();
+      }
+      case 'multi-ripped': state.multiForm.ripped = !state.multiForm.ripped; return renderModals();
+      case 'save-multi': return saveMulti();
       case 'form-format': {
         syncFormFromDom();
         var key = el.dataset.fmt;

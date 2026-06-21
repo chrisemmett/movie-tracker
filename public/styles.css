@@ -329,6 +329,24 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .skip-row { margin-top: 18px; text-align: center; }
 .skip-link { background: none; border: none; color: #9b988f; font-family: 'Barlow', sans-serif; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .skip-link:hover { color: #e7b34c; }
+.add-all-link { background: none; border: none; color: #e7b34c; font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.add-all-link:hover { color: #f0c876; }
+
+/* Batch-select: each result row pairs the pick button with a trailing + that
+ * toggles the title into the multi-add batch. */
+.result-row { display: flex; align-items: stretch; gap: 7px; }
+.result-row .result-btn { flex: 1; min-width: 0; }
+.result-row.selected .result-btn { border-color: rgba(231,179,76,0.5); }
+.result-add { flex: 0 0 auto; width: 46px; background: #0e0e12; border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; color: #9b988f; font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color .14s ease, background .14s ease, color .14s ease; }
+.result-add:hover { border-color: #e7b34c; color: #e7b34c; }
+.result-add.on { background: rgba(231,179,76,0.15); border-color: #e7b34c; color: #e7b34c; }
+
+/* Multi-add step: the batch list above the shared format / Plex controls. */
+.multi-head { font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #cfccc4; margin-bottom: 16px; }
+.multi-list { display: flex; flex-direction: column; gap: 7px; max-height: 260px; overflow: auto; margin-bottom: 4px; }
+.multi-item { display: flex; align-items: center; gap: 13px; background: #0e0e12; border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; padding: 8px; }
+.multi-item-info { flex: 1; min-width: 0; }
+.multi-item .result-add { height: 44px; }
 
 .meta-strip { display: flex; gap: 14px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,0.08); }
 .meta-thumb { width: 58px; height: 86px; object-fit: cover; border-radius: 5px; flex: 0 0 auto; background: #1a1a22; }
