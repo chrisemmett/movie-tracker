@@ -489,16 +489,29 @@
   }
 
   // ---------- modals ----------
+  // Re-rendering rewrites #modals.innerHTML wholesale, which recreates the
+  // overlay + dialog nodes and replays their fadeIn/fadeUp entrance
+  // animations. While a modal stays open across interactions (toggling a
+  // format, asking to delete, etc.) that replay reads as a jarring flash, so
+  // we only animate a modal on the render that first mounts it.
+  var modalMounted = { detail: false, add: false };
   function renderModals() {
     var html = '';
-    if (state.detailId) html += detailModalHTML();
-    if (state.addOpen) html += addModalHTML();
+    if (state.detailId) html += detailModalHTML(modalMounted.detail);
+    if (state.addOpen) html += addModalHTML(modalMounted.add);
     document.getElementById('modals').innerHTML = html;
+    modalMounted.detail = !!state.detailId;
+    modalMounted.add = !!state.addOpen;
+    // Lock background scroll while any modal is open so the title list behind
+    // the overlay stays put. The overlay (and `.overlay.top`) is its own
+    // scroll container, so tall modals still scroll internally.
+    document.body.classList.toggle('modal-open', !!(state.detailId || state.addOpen));
   }
 
-  function detailModalHTML() {
+  function detailModalHTML(mounted) {
     var d = state.discs.find(function (x) { return x.id === state.detailId; });
     if (!d) return '';
+    var animCls = mounted ? ' no-anim' : '';
     var fmts = discFormats(d);
     var m = fmtMeta(fmts[0]);
     var genres = (d.genre || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
@@ -523,8 +536,8 @@
           '<span class="rip-blocked-text">Can’t be ripped to Plex — Apple TV is digital-only.</span>' +
         '</div>';
 
-    return '<div class="overlay" data-action="overlay" data-modal="detail">' +
-      '<div class="dialog">' +
+    return '<div class="overlay' + animCls + '" data-action="overlay" data-modal="detail">' +
+      '<div class="dialog' + animCls + '">' +
         '<div class="detail-cover">' + posterOrHouse(d, 'detail') + '</div>' +
         '<div class="detail-body">' +
           '<button class="close-btn" data-action="close-detail">✕</button>' +
@@ -560,10 +573,11 @@
     return '<div><div class="info-label">' + label + '</div><div class="info-val">' + escapeHtml(val) + '</div></div>';
   }
 
-  function addModalHTML() {
+  function addModalHTML(mounted) {
     var title = state.editId ? 'Edit disc' : 'Add to the stacks';
-    return '<div class="overlay top" data-action="overlay" data-modal="add">' +
-      '<div class="dialog-add">' +
+    var animCls = mounted ? ' no-anim' : '';
+    return '<div class="overlay top' + animCls + '" data-action="overlay" data-modal="add">' +
+      '<div class="dialog-add' + animCls + '">' +
         '<div class="modal-head"><div class="modal-title">' + title + '</div>' +
           '<button class="close-btn" data-action="close-add">✕</button></div>' +
         (state.step === 'search' ? searchStepHTML()

@@ -1,6 +1,8 @@
 /* STACKS — Media Library. Visual tokens follow the design handoff. */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #0a0a0d; }
+/* While a modal is open, lock background scroll (see renderModals in app.js). */
+body.modal-open { overflow: hidden; }
 ::selection { background: #e7b34c; color: #0a0a0d; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -251,6 +253,9 @@ html, body { margin: 0; padding: 0; background: #0a0a0d; }
 .overlay.top { z-index: 70; background: rgba(4,4,7,0.82); align-items: flex-start; padding: 36px 24px; overflow: auto; }
 .dialog { width: min(940px, 100%); height: min(640px, 88vh); display: flex; background: #15151b; border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; overflow: hidden; box-shadow: 0 44px 110px rgba(0,0,0,0.72); animation: fadeUp .22s ease; }
 .dialog-add { width: min(560px, 100%); background: #15151b; border: 1px solid rgba(255,255,255,0.1); border-radius: 11px; overflow: hidden; box-shadow: 0 44px 110px rgba(0,0,0,0.72); animation: fadeUp .22s ease; }
+/* Re-renders of an already-open modal skip the entrance animation so
+   interactions inside it don't flash. See renderModals() in app.js. */
+.overlay.no-anim, .dialog.no-anim, .dialog-add.no-anim { animation: none; }
 .close-btn { width: 30px; height: 30px; border-radius: 7px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #cfccc4; font-size: 15px; cursor: pointer; line-height: 1; }
 .close-btn:hover { background: rgba(255,255,255,0.12); }
 
