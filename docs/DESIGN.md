@@ -293,22 +293,41 @@ The whole frontend is one IIFE with no framework. Key pieces:
   the markup and a case in the dispatcher.
 - **API layer**: `api(path, opts)` wraps `fetch` with JSON parsing and
   throws on `!response.ok`.
-- **Add flow**: a two-step modal — OMDB search (with movie/series toggle and
-  an optional year field beside the query) then a form pre-filled from the
-  chosen result. Posters are sent as URLs; the backend downloads + stores
-  them. The search request passes `y=<year>` only when the field holds a
-  4-digit value. The server caps each search at OMDB's top 10 results but
-  also returns `totalResults`; when that exceeds the number shown, a
-  `.results-note` line above the list ("Showing the top N of M matches — add
-  a year to narrow it down") nudges the user to use the year field. The search
-  box doubles as an IMDb-ID lookup: a query matching `^tt\d+$` skips the title
-  search and goes straight to the detail proxy (`lookupByImdb()` →
-  `applyDetailToForm()` → details step). When OMDB returns the
-  `OMDB_TOO_MANY` error, `state.tooMany` is set and an `.imdb-hint` block
-  renders below the error message pointing the user at that IMDb-ID escape
-  hatch. Search state lives in `searchQuery`, `searchYear`, `searchType`,
-  `results`, `totalResults`, and `tooMany`, all reset on open and on a
-  movie/series toggle.
+- **Add flow**: a modal with three steps — OMDB search (with movie/series
+  toggle and an optional year field beside the query), then either a single
+  details form pre-filled from the chosen result, or the **multi-add** step
+  (see below). Posters are sent as URLs; the backend downloads + stores them.
+  The search request passes `y=<year>` only when the field holds a 4-digit
+  value. The server caps each search at OMDB's top 10 results but also returns
+  `totalResults`; when that exceeds the number shown, a `.results-note` line
+  above the list ("Showing the top N of M matches — add a year to narrow it
+  down") nudges the user to use the year field. The search box doubles as an
+  IMDb-ID lookup: a query matching `^tt\d+$` skips the title search and goes
+  straight to the detail proxy (`lookupByImdb()` → `applyDetailToForm()` →
+  details step). When OMDB returns the `OMDB_TOO_MANY` error, `state.tooMany`
+  is set and an `.imdb-hint` block renders below the error message pointing the
+  user at that IMDb-ID escape hatch. Search state lives in `searchQuery`,
+  `searchYear`, `searchType`, `results`, `totalResults`, and `tooMany`, all
+  reset on open and on a movie/series toggle. The single details form
+  pre-fills its format picks from the last-saved selection
+  (`rememberedFormats()`; see Session settings).
+- **Multi-add (batch) flow**: each search-result row pairs the pick button
+  (`.result-btn`, → single details step as before) with a trailing `+`
+  (`.result-add`, `data-action="toggle-result"`) that toggles the title into a
+  batch held in `state.selected` (a map keyed by `imdbID`, surviving re-searches
+  so a batch can span queries). While the batch is non-empty the footer's
+  "Skip — enter details manually" link (`skipRowHTML()`) becomes an "Add all
+  (N)" link (`data-action="add-all"`) that advances to `state.step === 'multi'`
+  (`multiStepHTML()`). That step lists the batch (each row removable via the
+  same `toggle-result`) and offers one shared format picker + Plex-status pill
+  (`state.multiForm = { formats, ripped }`, pre-filled from `rememberedFormats()`,
+  edited via `multi-format` / `multi-ripped`). Saving (`saveMulti()`,
+  `data-action="save-multi"`) walks the batch sequentially: each title is
+  enriched from its OMDB detail (best-effort, falls back to the search row),
+  built into a multipart body by `buildDiscFormData()`, and POSTed; `409`
+  duplicates and other failures are tallied (not aborted) and reported in a
+  closing summary. `state.multiSaving` / `state.multiDone` drive the progress
+  label. Removing the last batch item from the multi step falls back to search.
 - **Edit flow**: loads the disc, populates the same form, sends a PUT with
   multipart body (image optional).
 - **Detail modal**: read-only metadata, ripped toggle, edit & inline-confirm
@@ -356,7 +375,11 @@ The whole frontend is one IIFE with no framework. Key pieces:
   / `saveSettings()`, defaults in `DEFAULT_SETTINGS`). The first stored
   preference is the active title `sort`; it is read on boot (validated against
   `SORT_OPTIONS`, falling back to the default if unknown) and rewritten
-  whenever the sort `<select>` changes. There is no server-side persistence —
+  whenever the sort `<select>` changes. The second is `addFormats`, the format
+  selection to pre-fill when adding a title: `rememberFormats()` rewrites it on
+  every successful add (single or batch), and `rememberedFormats()` reads it
+  back (filtered against the known formats, defaulting to `['bluray']`) to seed
+  the add form and the multi-add picker. There is no server-side persistence —
   these settings live only in the browser. Add future preferences as new keys
   on `DEFAULT_SETTINGS`.
 - **Stats view**: aggregates totals, runtime, average IMDb rating, top
@@ -539,7 +562,12 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-21 (detail modal now replaces the ripped toggle with a
+*Last revised: 2026-06-21 (the add flow now remembers the last-used format
+selection (`addFormats` session setting) to pre-fill the next add, and gained a
+multi-add batch flow: a `+` on each OMDB search row collects titles into
+`state.selected`, "Add all" opens a shared format/Plex step (`multiStepHTML()`),
+and `saveMulti()` POSTs the whole batch with enrichment + duplicate tallying.
+Previous: detail modal now replaces the ripped toggle with a
 `.rip-blocked` notice for Apple TV-only titles, which are digital-only and can't
 be ripped to Plex. Previous: large-catalog performance pass for ~2000-title collections:
 the list route now projects an explicit `LIST_COLUMNS` set instead of `SELECT *` (drops the
