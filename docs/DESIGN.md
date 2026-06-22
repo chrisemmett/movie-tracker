@@ -348,9 +348,8 @@ The whole frontend is one IIFE with no framework. Key pieces:
   override of the grid's `.card-img` `cover`) so the whole poster is visible
   rather than having its sides cropped; the cover shares the modal's
   `#15151b` background so leftover space blends into the body rather than
-  letterboxing to black, and symmetric 28px horizontal padding on the img
-  (`box-sizing: border-box; padding: 0 28px`, so `object-fit` fits the poster
-  inside the reduced content box) pads it away from the dialog's edges. On
+  letterboxing to black, and symmetric `left: 28px` / `right: 28px` insets pad
+  the poster away from the dialog's edges. On
   mobile the layout flips: the dialog is a fixed-height box with
   `overflow: hidden`, the poster (`.detail-cover`) is pulled out of the flow
   and pinned behind the content as a 5%-opacity backdrop
@@ -580,10 +579,8 @@ When you add a feature:
 *Last revised: 2026-06-22 (the detail modal's desktop cover column now shares
 the modal's `#15151b` background instead of a near-black `#0b0b0f` — leftover
 space around the letterboxed poster blends into the body — and the poster gets
-symmetric 28px horizontal padding (applied as `box-sizing: border-box;
-padding: 0 28px` on the img itself, so `object-fit: contain` fits the poster
-inside the reduced content box and the padding strips show the cover
-background) for even padding from the dialog edges. Previous: the detail
+symmetric `left: 28px` / `right: 28px` insets for even padding from the dialog
+edges. Previous: the detail
 modal's poster now uses `object-fit:
 contain` on desktop so the whole poster is visible instead of having its sides
 cropped; mobile keeps `cover` for the full-bleed backdrop. Previous: modal
