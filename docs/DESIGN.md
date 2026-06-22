@@ -343,11 +343,16 @@ The whole frontend is one IIFE with no framework. Key pieces:
   Plex — Apple TV is digital-only.") in the Apple TV violet accent, since
   digital-only titles can't be ripped. The dialog is a fixed size (`.dialog` has a set `height`, not a
   `max-height`) so it doesn't grow with the synopsis; the plot (`.plot`) lives
-  in a fixed-height box that scrolls internally when the text overflows. On
+  in a fixed-height box that scrolls internally when the text overflows. The
+  poster fills the fixed-width cover column with `object-fit: contain` (an
+  override of the grid's `.card-img` `cover`) so the whole poster is visible
+  rather than having its sides cropped; the dark cover background letterboxes
+  any leftover space. On
   mobile the layout flips: the dialog is a fixed-height box with
   `overflow: hidden`, the poster (`.detail-cover`) is pulled out of the flow
   and pinned behind the content as a 5%-opacity backdrop
-  (`position: absolute; inset: 0`), and `.detail-body` fills the modal as the
+  (`position: absolute; inset: 0`, poster back to `object-fit: cover` so it
+  fills the full backdrop), and `.detail-body` fills the modal as the
   single scroll region. The synopsis loses its internal scroll box (`.plot`
   height is unset) so it flows inline — eliminating the nested
   poster/synopsis/body scroll points in favour of one.
@@ -569,7 +574,10 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-21 (modal re-renders now skip the `fadeIn`/`fadeUp`
+*Last revised: 2026-06-22 (the detail modal's poster now uses `object-fit:
+contain` on desktop so the whole poster is visible instead of having its sides
+cropped; mobile keeps `cover` for the full-bleed backdrop. Previous: modal
+re-renders now skip the `fadeIn`/`fadeUp`
 entrance animation via a `.no-anim` class so clicking buttons inside an open
 modal no longer flashes, and an open modal locks background scroll via a
 `body.modal-open` class. Previous: the add flow now remembers the last-used format
