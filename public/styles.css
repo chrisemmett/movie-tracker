@@ -261,6 +261,10 @@ body.modal-open { overflow: hidden; }
 
 /* Detail */
 .detail-cover { flex: 0 0 312px; position: relative; background: #0b0b0f; align-self: stretch; min-height: 440px; }
+/* Show the whole poster within the fixed-size cover column rather than
+   cropping its sides (the grid's .card-img uses object-fit: cover). The
+   dark cover background letterboxes any leftover space. */
+.detail-cover .card-img { object-fit: contain; }
 .detail-cover .house-initial { right: -10%; bottom: 2%; font-size: 330px; line-height: 0.64; opacity: 0.5; }
 .detail-body { flex: 1; min-width: 0; padding: 30px 32px 28px; overflow: auto; position: relative; }
 .detail-body .close-btn { position: absolute; top: 18px; right: 18px; }
@@ -397,6 +401,8 @@ body.modal-open { overflow: hidden; }
     opacity: 0.05; pointer-events: none; z-index: 0; background: transparent;
   }
   .detail-cover .house-initial { opacity: 1; }
+  /* Backdrop should fill the whole dialog here, not letterbox. */
+  .detail-cover .card-img { object-fit: cover; }
   .detail-body { position: relative; z-index: 1; height: 100%; }
   /* Synopsis flows inline; the body is the single scroll region. */
   .plot { height: auto; overflow: visible; padding-right: 0; }
