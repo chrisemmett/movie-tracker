@@ -344,18 +344,12 @@ The whole frontend is one IIFE with no framework. Key pieces:
   digital-only titles can't be ripped. The dialog is a fixed size (`.dialog` has a set `height`, not a
   `max-height`) so it doesn't grow with the synopsis; the plot (`.plot`) lives
   in a fixed-height box that scrolls internally when the text overflows. The
-  cover column is a flex box (`display: flex; align-items/justify-content:
-  center; padding: 24px 28px`) that centres the poster; the `.card-img` is a
-  static, normally-flowed image (`position: static; width/height: 100%;
-  object-fit: contain`, an override of the grid's absolute, `cover` `.card-img`)
-  so the whole poster is visible rather than having its sides cropped, sized
-  against the padded content box so it sits inset from the dialog edges. (The
-  earlier approach of insetting the absolutely-positioned image via
-  `left`/`right` or `padding` did not render — an absolutely-positioned
-  replaced element ignores those when width/height are 100%, being over-
-  constrained — so the cover was switched to flex centring.) The cover shares
-  the modal's `#15151b` background so the letterbox strips around the poster
-  blend into the body rather than showing black. On
+  poster fills the fixed-width cover column with `object-fit: contain` (an
+  override of the grid's `.card-img` `cover`) so the whole poster is visible
+  rather than having its sides cropped; the cover shares the modal's
+  `#15151b` background so leftover space blends into the body rather than
+  letterboxing to black, and symmetric `left: 28px` / `right: 28px` insets pad
+  the poster away from the dialog's edges. On
   mobile the layout flips: the dialog is a fixed-height box with
   `overflow: hidden`, the poster (`.detail-cover`) is pulled out of the flow
   and pinned behind the content as a 5%-opacity backdrop
@@ -583,13 +577,11 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-22 (the detail modal's desktop cover column was
-rewritten to centre the poster with a flex box and real `padding: 24px 28px`
-instead of absolutely positioning the `<img>`; the earlier inset/padding
-attempts on the absolutely-positioned, replaced `<img>` were over-constrained
-and never rendered the padding. The cover shares the modal's `#15151b`
-background instead of a near-black `#0b0b0f` so the letterbox strips around the
-poster blend into the body. Previous: the detail
+*Last revised: 2026-06-22 (the detail modal's desktop cover column now shares
+the modal's `#15151b` background instead of a near-black `#0b0b0f` — leftover
+space around the letterboxed poster blends into the body — and the poster gets
+symmetric `left: 28px` / `right: 28px` insets for even padding from the dialog
+edges. Previous: the detail
 modal's poster now uses `object-fit:
 contain` on desktop so the whole poster is visible instead of having its sides
 cropped; mobile keeps `cover` for the full-bleed backdrop. Previous: modal
