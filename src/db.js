@@ -122,6 +122,19 @@ async function ensureColumns(conn) {
       "UPDATE movies SET formats = JSON_ARRAY(format) WHERE formats IS NULL"
     );
   }
+
+  // Backfill `imdb_rating` from the archived OMDB payload. Early saves dropped
+  // the top-level `imdbRating` field on the floor, which left titles whose
+  // OMDB `Ratings` array came back empty with no IMDb score at all — silently
+  // excluding them from the stats average. `omdb_raw` still has the value, so
+  // recover it without any new OMDB calls. Idempotent: only touches NULL rows.
+  await conn.query(
+    `UPDATE movies
+        SET imdb_rating = JSON_UNQUOTE(JSON_EXTRACT(omdb_raw, '$.imdbRating'))
+      WHERE imdb_rating IS NULL
+        AND omdb_raw IS NOT NULL
+        AND JSON_UNQUOTE(JSON_EXTRACT(omdb_raw, '$.imdbRating')) NOT IN ('', 'N/A')`
+  );
 }
 
 async function initDb({ retries = 10, delayMs = 3000 } = {}) {
