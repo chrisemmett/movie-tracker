@@ -42,7 +42,7 @@
   // ---------- helpers ----------
   function blankForm() {
     return { title: '', sortTitle: '', year: '', formats: ['bluray'], studio: '', distributor: '', ripped: false,
-      poster: '', director: '', cast: '', plot: '', genre: '', runtime: '', rated: '', ratings: [], imdbID: '' };
+      poster: '', director: '', cast: '', plot: '', genre: '', runtime: '', rated: '', ratings: [], imdbRating: '', imdbID: '' };
   }
   var FMT_META = {
     bluray:  { label: 'BLU-RAY', color: '#4d8df0', short: 'BD' },
@@ -370,6 +370,16 @@
     }
     return 0;
   }
+  // The IMDb score for a disc. OMDB exposes the score in two places and they
+  // don't always agree on coverage: the dedicated `imdbRating` field is present
+  // for far more titles than the `Ratings` array (which is often empty for
+  // less-mainstream releases). Prefer the dedicated field, fall back to the
+  // array — otherwise those titles silently drop out of the average.
+  function discImdbScore(d) {
+    var n = parseFloat(d.imdbRating);
+    if (n > 0) return n;
+    return parseImdbRating(d.ratings);
+  }
   function tallyTop(items, limit) {
     var counts = {};
     items.forEach(function (k) {
@@ -414,7 +424,7 @@
     var totalRuntime = discs.reduce(function (s, d) { return s + parseRuntimeMinutes(d.runtime); }, 0);
     var runtimeDays = (totalRuntime / 60 / 24).toFixed(1);
 
-    var imdbScores = discs.map(function (d) { return parseImdbRating(d.ratings); }).filter(function (n) { return n > 0; });
+    var imdbScores = discs.map(function (d) { return discImdbScore(d); }).filter(function (n) { return n > 0; });
     var avgImdb = imdbScores.length
       ? (imdbScores.reduce(function (s, n) { return s + n; }, 0) / imdbScores.length).toFixed(1)
       : '—';
@@ -873,7 +883,7 @@
       formats: state.form.formats.slice(), studio: d.studio || '', distributor: '', ripped: false,
       poster: d.poster_url || '', director: d.director || '', cast: d.cast || d.actors || '',
       plot: d.plot || '', genre: d.genre || '', runtime: d.runtime || '', rated: d.rated || '',
-      ratings: d.ratings || [], imdbID: d.imdb_id || imdbID,
+      ratings: d.ratings || [], imdbRating: d.imdb_rating || '', imdbID: d.imdb_id || imdbID,
     };
   }
 
@@ -897,7 +907,7 @@
     state.form = {
       title: d.title, sortTitle: d.sortTitle || '', year: d.year, formats: discFormats(d).slice(), studio: d.studio, distributor: d.distributor,
       ripped: d.ripped, poster: d.hasUpload ? '' : d.poster, director: d.director, cast: d.cast,
-      plot: d.plot, genre: d.genre, runtime: d.runtime, rated: d.rated, ratings: d.ratings || [], imdbID: d.imdbID,
+      plot: d.plot, genre: d.genre, runtime: d.runtime, rated: d.rated, ratings: d.ratings || [], imdbRating: d.imdbRating || '', imdbID: d.imdbID,
     };
     renderModals();
   }
@@ -920,6 +930,7 @@
     fd.append('ripped', f.ripped ? 'true' : 'false');
     fd.append('poster', f.poster || '');
     fd.append('ratings', JSON.stringify(f.ratings || []));
+    fd.append('imdbRating', f.imdbRating || '');
     if (file) fd.append('image', file);
 
     var editing = state.editId;
@@ -965,6 +976,7 @@
       imdbID: (d && d.imdb_id) || r.imdbID || '',
       poster: (d && d.poster_url) || r.poster || '',
       ratings: (d && d.ratings) || [],
+      imdbRating: (d && d.imdb_rating) || '',
     };
     var fd = new FormData();
     ['title', 'sortTitle', 'year', 'studio', 'distributor', 'director', 'cast', 'plot', 'genre', 'runtime', 'rated', 'imdbID']
@@ -973,6 +985,7 @@
     fd.append('ripped', ripped ? 'true' : 'false');
     fd.append('poster', f.poster || '');
     fd.append('ratings', JSON.stringify(f.ratings || []));
+    fd.append('imdbRating', f.imdbRating || '');
     return fd;
   }
 
