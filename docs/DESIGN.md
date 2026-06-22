@@ -74,7 +74,8 @@ movie-tracker/
 │   └── styles.css            Monolithic dark theme stylesheet
 ├── scripts/
 │   ├── backup.sh             mysqldump + tar of uploads → backups/<ts>/
-│   └── restore.sh            Restore a backup snapshot
+│   ├── restore.sh            Restore a backup snapshot
+│   └── backfill-omdb.js      Re-fetch missing IMDb scores from OMDB (one-off)
 ├── docs/
 │   └── DESIGN.md             ← this document
 ├── Dockerfile                Node 20-alpine, omit=dev
@@ -412,7 +413,10 @@ The whole frontend is one IIFE with no framework. Key pieces:
   `ratings` array. The two OMDB sources don't have equal coverage —
   `imdbRating` is populated for far more titles than the `Ratings` array,
   which is frequently empty for less-mainstream releases — so a title is
-  counted as long as *either* carries a score. The
+  counted as long as *either* carries a score. Titles saved before the app
+  persisted `imdb_rating` may have neither (the score was dropped on the floor
+  at save time, `omdb_raw` included); they stay uncounted until re-fetched from
+  OMDB via `scripts/backfill-omdb.js` (see §7.3). The
   Plex-status figures (the "Ripped to Plex" headline stat and the "Plex
   status" panel) only count *rippable* titles: Apple TV is digital-only and
   can't be ripped, so titles held solely in the Apple TV format are excluded
@@ -517,6 +521,13 @@ restarts but are erased by `docker compose down -v` or `docker volume rm`.
 - `scripts/backup.sh` writes `backups/<UTC-timestamp>/db.sql` (via
   `mysqldump` inside the `db` container) and `uploads.tar.gz`.
 - `scripts/restore.sh <dir>` restores both, prompting before overwriting.
+- `scripts/backfill-omdb.js` (also `npm run backfill-omdb`) is a one-off repair
+  for titles saved before the app persisted `imdb_rating`: it finds rows with
+  an `imdb_id` but no IMDb score the stats can read (neither `imdb_rating` nor
+  an IMDb entry in `ratings`), re-fetches each from OMDB, and writes back
+  `imdb_rating`, `ratings`, and `omdb_raw`. Run it inside the `app` container so
+  it inherits the DB env and `OMDB_API_KEY`. Idempotent and rate-limited
+  (`BACKFILL_DELAY_MS`, default 150 ms); supports `--dry-run` and `--limit N`.
 
 ### 7.4 CI / publishing
 
@@ -591,7 +602,15 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-22 (the detail modal's desktop cover column is now a
+*Last revised: 2026-06-22 (follow-up to the "Avg IMDb rating" fix: the boot
+migration that was meant to un-stick the average for existing rows was a no-op,
+because it read the score from `omdb_raw` — a column the app never persisted
+either, so there was nothing to read. Added `scripts/backfill-omdb.js`
+(`npm run backfill-omdb`), a one-off, idempotent, rate-limited repair that
+re-fetches the IMDb score from OMDB by `imdb_id` for rows the stats can't see
+and writes back `imdb_rating`, `ratings`, and `omdb_raw`; the boot migration is
+kept only as a cheap safety net for externally-imported rows that do carry an
+archived payload. Previous: the detail modal's desktop cover column is now a
 flex box with real `padding: 24px 28px` and a statically-flowed poster
 (`position: static; width/height: 100%; object-fit: contain`) so the poster
 gets even padding on all sides against the `#15151b` cover background. This
