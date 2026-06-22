@@ -168,7 +168,7 @@ projects an explicit column list (`LIST_COLUMNS`) instead of `SELECT *`. The
 projection is exactly the set of columns `toDisc()` reads; it deliberately
 omits `omdb_raw` (a full archived OMDB response, kilobytes per row, never sent
 to the client) and other detail-only columns (`writer`, `released`, `language`,
-`country`, `imdb_rating`, `updated_at`). At ~2000 rows this trims megabytes off
+`country`, `updated_at`). At ~2000 rows this trims megabytes off
 the DB→Node transfer. **If you teach `toDisc()` to read a new column, add it to
 `LIST_COLUMNS` too**, or the list will silently return it as `undefined` while
 the single-disc route (which still uses `SELECT *`) works fine.
@@ -259,6 +259,7 @@ the list route's `ORDER BY created_at DESC, id DESC`.
   director, cast, plot,
   genre, runtime, rated,
   ratings,                  // array of { source, value }
+  imdbRating,               // dedicated IMDb score string, e.g. "8.2"
   imdbID
 }
 ```
@@ -406,6 +407,12 @@ The whole frontend is one IIFE with no framework. Key pieces:
   on `DEFAULT_SETTINGS`.
 - **Stats view**: aggregates totals, runtime, average IMDb rating, top
   genres / directors / studios / decades — all computed in-browser. The
+  average IMDb rating scores each disc via `discImdbScore()`, which prefers
+  the dedicated `imdbRating` field and falls back to the IMDb entry in the
+  `ratings` array. The two OMDB sources don't have equal coverage —
+  `imdbRating` is populated for far more titles than the `Ratings` array,
+  which is frequently empty for less-mainstream releases — so a title is
+  counted as long as *either* carries a score. The
   Plex-status figures (the "Ripped to Plex" headline stat and the "Plex
   status" panel) only count *rippable* titles: Apple TV is digital-only and
   can't be ripped, so titles held solely in the Apple TV format are excluded
@@ -594,7 +601,14 @@ over-constrained; the inset diffs were also lost in squash-merges (#38 landed
 empty; #39 only touched the mobile block), so the desktop fix had never
 actually reached the codebase. The mobile rule restores the image to
 `position: absolute; inset: 0` so the full-bleed backdrop still works. Previous:
-the detail modal's desktop cover column shares
+the stats "Avg IMDb rating" no longer silently
+ignores titles whose OMDB `Ratings` array came back empty: the dedicated
+`imdb_rating` column is now persisted on create/update, projected in
+`LIST_COLUMNS`, exposed by `toDisc()` as `imdbRating`, and scored via the new
+`discImdbScore()` helper (prefers `imdbRating`, falls back to the `ratings`
+array). An idempotent boot migration backfills `imdb_rating` for existing rows
+from the archived `omdb_raw` payload, so the average un-sticks without any new
+OMDB calls. Previous: the detail modal's desktop cover column shares
 the modal's `#15151b` background instead of a near-black `#0b0b0f` — leftover
 space around the letterboxed poster blends into the body. Previous: the detail
 modal's poster now uses `object-fit:

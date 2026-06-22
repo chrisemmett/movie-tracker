@@ -15,13 +15,13 @@ const CODE_PREFIX = { bluray: 'BD', uhd: 'UHD', appletv: 'ATV' };
 // whole collection is shipped on every page load, so we avoid `SELECT *`: it
 // would also pull `omdb_raw` (a full archived OMDB response, kilobytes per row
 // and never sent to the client) plus other detail-only columns
-// (`writer`, `released`, `language`, `country`, `imdb_rating`, `updated_at`).
+// (`writer`, `released`, `language`, `country`, `updated_at`).
 // At ~2000 rows that trims megabytes off the DB→Node transfer.
 const LIST_COLUMNS = [
   'id', 'code', 'created_at', 'title', 'sort_title', 'year', 'format',
   'formats', 'studio', 'distributor', 'ripped', 'image_file', 'poster_url',
   'director', 'actors', 'plot', 'genre', 'runtime', 'rated', 'ratings',
-  'imdb_id',
+  'imdb_rating', 'imdb_id',
 ].join(', ');
 
 function genCode(format, n) {
@@ -109,6 +109,7 @@ function toDisc(row) {
     runtime: row.runtime || '',
     rated: row.rated || '',
     ratings: parseRatings(row.ratings),
+    imdbRating: row.imdb_rating || '',
     imdbID: row.imdb_id || '',
   };
 }
@@ -138,6 +139,7 @@ function bodyToColumns(b) {
     genre: (b.genre || '').trim() || null,
     runtime: (b.runtime || '').trim() || null,
     rated: (b.rated || '').trim() || null,
+    imdb_rating: (b.imdbRating || '').trim() || null,
     imdb_id: (b.imdbID || '').trim() || null,
     poster_url: (b.poster || '').trim() || null,
     ratings: JSON.stringify(parseRatings(b.ratings)),
