@@ -123,11 +123,12 @@ async function ensureColumns(conn) {
     );
   }
 
-  // Backfill `imdb_rating` from the archived OMDB payload. Early saves dropped
-  // the top-level `imdbRating` field on the floor, which left titles whose
-  // OMDB `Ratings` array came back empty with no IMDb score at all — silently
-  // excluding them from the stats average. `omdb_raw` still has the value, so
-  // recover it without any new OMDB calls. Idempotent: only touches NULL rows.
+  // Cheap safety net: if a row has an archived OMDB payload but a missing
+  // `imdb_rating` column (e.g. from an external import or an older restore),
+  // recover the score from `omdb_raw` without an OMDB call. Note this does NOT
+  // help rows the app itself created before the fix — it never persisted
+  // `omdb_raw` either, so there's nothing to read. Those are recovered by
+  // re-fetching from OMDB via `scripts/backfill-omdb.js`. Idempotent.
   await conn.query(
     `UPDATE movies
         SET imdb_rating = JSON_UNQUOTE(JSON_EXTRACT(omdb_raw, '$.imdbRating'))
