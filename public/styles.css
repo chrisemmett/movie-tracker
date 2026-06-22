@@ -260,13 +260,17 @@ body.modal-open { overflow: hidden; }
 .close-btn:hover { background: rgba(255,255,255,0.12); }
 
 /* Detail */
-.detail-cover { flex: 0 0 312px; position: relative; background: #15151b; align-self: stretch; min-height: 440px; }
+.detail-cover { flex: 0 0 312px; position: relative; background: #15151b; align-self: stretch; min-height: 440px; display: flex; align-items: center; justify-content: center; padding: 24px 28px; }
 /* Show the whole poster within the fixed-size cover column rather than
    cropping its sides (the grid's .card-img uses object-fit: cover). The
    cover shares the modal background (#15151b) so leftover space blends with
-   the body instead of letterboxing to black, and symmetric left/right insets
-   pad the poster away from the dialog edges. */
-.detail-cover .card-img { object-fit: contain; left: 28px; right: 28px; }
+   the body instead of letterboxing to black. The cover is a flex box with
+   real padding and the poster flows statically (overriding the grid's
+   absolutely-positioned, width/height:100% .card-img) so it sizes against
+   the padded content box and gets even padding on all sides. An absolutely
+   positioned replaced <img> with width/height:100% is over-constrained, so
+   left/right insets were silently dropped — hence the flex approach. */
+.detail-cover .card-img { position: static; width: 100%; height: 100%; object-fit: contain; }
 .detail-cover .house-initial { right: -10%; bottom: 2%; font-size: 330px; line-height: 0.64; opacity: 0.5; }
 .detail-body { flex: 1; min-width: 0; padding: 30px 32px 28px; overflow: auto; position: relative; }
 .detail-body .close-btn { position: absolute; top: 18px; right: 18px; }
@@ -403,8 +407,9 @@ body.modal-open { overflow: hidden; }
     display: block; opacity: 0.05; pointer-events: none; z-index: 0; background: transparent;
   }
   .detail-cover .house-initial { opacity: 1; }
-  /* Backdrop should fill the whole dialog here, not letterbox. */
-  .detail-cover .card-img { object-fit: cover; left: 0; right: 0; }
+  /* Backdrop should fill the whole dialog here, not letterbox. Restore the
+     absolute full-bleed positioning the desktop rule overrides to static. */
+  .detail-cover .card-img { position: absolute; inset: 0; object-fit: cover; }
   .detail-body { position: relative; z-index: 1; height: 100%; }
   /* Synopsis flows inline; the body is the single scroll region. */
   .plot { height: auto; overflow: visible; padding-right: 0; }
