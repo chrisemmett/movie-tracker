@@ -16,5 +16,9 @@
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.11.0"
+  },
+  "devDependencies": {
+    "@sparticuz/chromium": "^149.0.0",
+    "puppeteer-core": "^25.2.0"
   }
 }

@@ -399,8 +399,8 @@ body.modal-open { overflow: hidden; }
      the whole modal as the only scroll region. */
   .dialog { flex-direction: column; height: min(760px, 92vh); overflow: hidden; position: relative; }
   .detail-cover {
-    position: absolute; inset: 0; flex: none; min-height: 0;
-    opacity: 0.05; pointer-events: none; z-index: 0; background: transparent;
+    position: absolute; inset: 0; flex: none; min-height: 0; padding: 0;
+    display: block; opacity: 0.05; pointer-events: none; z-index: 0; background: transparent;
   }
   .detail-cover .house-initial { opacity: 1; }
   /* Backdrop should fill the whole dialog here, not letterbox. */

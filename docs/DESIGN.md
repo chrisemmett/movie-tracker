@@ -353,7 +353,8 @@ The whole frontend is one IIFE with no framework. Key pieces:
   mobile the layout flips: the dialog is a fixed-height box with
   `overflow: hidden`, the poster (`.detail-cover`) is pulled out of the flow
   and pinned behind the content as a 5%-opacity backdrop
-  (`position: absolute; inset: 0`, poster back to `object-fit: cover` so it
+  (`position: absolute; inset: 0` on both cover and image, image back to
+  `object-fit: cover` so it
   fills the full backdrop), and `.detail-body` fills the modal as the
   single scroll region. The synopsis loses its internal scroll box (`.plot`
   height is unset) so it flows inline — eliminating the nested
