@@ -35,6 +35,8 @@
     multiForm: { formats: ['bluray'], ripped: false },
     multiSaving: false,
     multiDone: 0,
+    settingsOpen: false,
+    recalc: { running: false, result: null, error: '' },
   };
 
   var root = document.getElementById('app');
@@ -233,7 +235,8 @@
         stat(appletv, 'APPLE TV', 'appletv') +
         stat(ripped, 'RIPPED', '') +
       '</div>' +
-      '<button class="btn-add" data-action="open-add"><span>+</span> Add disc</button>';
+      '<button class="btn-add" data-action="open-add"><span>+</span> Add disc</button>' +
+      '<button class="btn-cog" data-action="open-settings" title="Settings" aria-label="Settings">⚙</button>';
   }
   function stat(num, cap, cls) {
     return '<div class="stat"><div class="stat-num ' + cls + '">' + num + '</div><div class="stat-cap">' + cap + '</div></div>';
@@ -504,18 +507,20 @@
   // animations. While a modal stays open across interactions (toggling a
   // format, asking to delete, etc.) that replay reads as a jarring flash, so
   // we only animate a modal on the render that first mounts it.
-  var modalMounted = { detail: false, add: false };
+  var modalMounted = { detail: false, add: false, settings: false };
   function renderModals() {
     var html = '';
     if (state.detailId) html += detailModalHTML(modalMounted.detail);
     if (state.addOpen) html += addModalHTML(modalMounted.add);
+    if (state.settingsOpen) html += settingsModalHTML(modalMounted.settings);
     document.getElementById('modals').innerHTML = html;
     modalMounted.detail = !!state.detailId;
     modalMounted.add = !!state.addOpen;
+    modalMounted.settings = !!state.settingsOpen;
     // Lock background scroll while any modal is open so the title list behind
     // the overlay stays put. The overlay (and `.overlay.top`) is its own
     // scroll container, so tall modals still scroll internally.
-    document.body.classList.toggle('modal-open', !!(state.detailId || state.addOpen));
+    document.body.classList.toggle('modal-open', !!(state.detailId || state.addOpen || state.settingsOpen));
   }
 
   function detailModalHTML(mounted) {
@@ -593,6 +598,46 @@
         (state.step === 'search' ? searchStepHTML()
           : state.step === 'multi' ? multiStepHTML()
           : detailsStepHTML()) +
+      '</div></div>';
+  }
+
+  // The Settings modal. Currently a single Maintenance section whose
+  // "Recalculate stats" button POSTs to /api/maintenance/recalculate-stats —
+  // the in-app equivalent of `scripts/backfill-omdb.js`, for when the host
+  // doesn't offer easy shell access.
+  function settingsModalHTML(mounted) {
+    var animCls = mounted ? ' no-anim' : '';
+    var s = state.recalc;
+    var status = '';
+    if (s.running) {
+      status = '<div class="loading"><span class="spinner"></span> Recalculating — this may take a few moments…</div>';
+    } else if (s.error) {
+      status = '<div class="err-msg">' + escapeHtml(s.error) + '</div>';
+    } else if (s.result) {
+      var r = s.result;
+      var parts = ['Done. ' + r.fixed + ' title' + (r.fixed === 1 ? '' : 's') + ' rescored'];
+      if (r.stillEmpty) parts.push(r.stillEmpty + ' had no OMDb score');
+      if (r.failed) parts.push(r.failed + ' lookup' + (r.failed === 1 ? '' : 's') + ' failed');
+      var msg = parts.join(', ') + '.';
+      if (!r.fixable) msg = 'Nothing to recalculate — every title with an IMDb ID already has a score.';
+      status = '<div class="recalc-result">' + escapeHtml(msg) + '</div>';
+    }
+    return '<div class="overlay top' + animCls + '" data-action="overlay" data-modal="settings">' +
+      '<div class="dialog-add' + animCls + '">' +
+        '<div class="modal-head"><div class="modal-title">Settings</div>' +
+          '<button class="close-btn" data-action="close-settings">✕</button></div>' +
+        '<div class="step">' +
+          '<div class="settings-section">' +
+            '<div class="settings-section-title">Maintenance</div>' +
+            '<p class="settings-help">Older titles can be missing their IMDb score, which leaves the stats page average pinned to the same value no matter how many discs you add. Recalculating refetches OMDb data for any title with a known IMDb ID but no stored score and writes the result back.</p>' +
+            '<div class="settings-action-row">' +
+              '<button class="btn-amber" data-action="recalculate-stats"' + (s.running ? ' disabled' : '') + '>' +
+                (s.running ? 'Recalculating…' : 'Recalculate stats') +
+              '</button>' +
+            '</div>' +
+            status +
+          '</div>' +
+        '</div>' +
       '</div></div>';
   }
 
@@ -822,6 +867,33 @@
   function closeAdd() {
     state.addOpen = false; state.editId = null; state.duplicateWarning = '';
     renderModals();
+  }
+  function openSettings() {
+    state.settingsOpen = true;
+    // Reset any prior run's result so reopening starts clean. An in-flight
+    // request (state.recalc.running) is left alone — closing/reopening
+    // shouldn't cancel work that's already happening on the server.
+    if (!state.recalc.running) state.recalc = { running: false, result: null, error: '' };
+    renderModals();
+  }
+  function closeSettings() { state.settingsOpen = false; renderModals(); }
+
+  function recalculateStats() {
+    if (state.recalc.running) return;
+    state.recalc = { running: true, result: null, error: '' };
+    renderModals();
+    api('/api/maintenance/recalculate-stats', { method: 'POST' }).then(function (data) {
+      state.recalc.running = false;
+      state.recalc.result = data;
+      renderModals();
+      // Pull the freshly-scored discs back so the stats page reflects the fix
+      // the moment the user navigates to it.
+      return loadDiscs();
+    }).catch(function (err) {
+      state.recalc.running = false;
+      state.recalc.error = 'Could not recalculate: ' + err.message;
+      renderModals();
+    });
   }
 
   // Preserve whatever the user has typed (uncontrolled inputs) before re-render.
@@ -1058,11 +1130,18 @@
     var action = el.dataset.action;
 
     if (action === 'overlay') {
-      if (e.target === el) { if (el.dataset.modal === 'detail') closeDetail(); else closeAdd(); }
+      if (e.target === el) {
+        if (el.dataset.modal === 'detail') closeDetail();
+        else if (el.dataset.modal === 'settings') closeSettings();
+        else closeAdd();
+      }
       return;
     }
     switch (action) {
       case 'open-add': return openAdd();
+      case 'open-settings': return openSettings();
+      case 'close-settings': return closeSettings();
+      case 'recalculate-stats': return recalculateStats();
       case 'toggle-menu': state.menuOpen = !state.menuOpen; return renderToolbar();
       case 'set-fmt': state.fmt = el.dataset.val; renderToolbar(); renderContent(); return;
       case 'set-plex': state.plex = el.dataset.val; renderToolbar(); renderContent(); return;
@@ -1155,6 +1234,7 @@
   function onKeydown(e) {
     if (e.key === 'Escape') {
       if (state.addOpen) { closeAdd(); }
+      else if (state.settingsOpen) { closeSettings(); }
       else if (state.detailId) { closeDetail(); }
     } else if (e.key === 'Enter' && (e.target.id === 'omdbSearch' || e.target.id === 'omdbYear')) {
       e.preventDefault(); runSearch();
