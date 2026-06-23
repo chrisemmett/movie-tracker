@@ -121,6 +121,19 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 - **No ORM, no external migration tool.** When you add a column, add it to
   `ADDED_COLUMNS` so existing deployments pick it up on next boot. Document
   the column in §5 below. New indexes go in `ADDED_INDEXES` the same way.
+- `ensureColumns()` also carries a small set of **idempotent data-repair
+  passes** for the `imdb_rating` column, which was added late and is the
+  source of every "Avg IMDb rating" mismatch the app has shipped. In order:
+  (a) backfill from `omdb_raw.imdbRating` for rows that have an archived
+  payload but no column value; (b) **promote the IMDb score from the
+  `ratings` JSON array** (`source: "IMDb"`, value like `"6.2/10"`) into the
+  column for rows whose score only ever made it into the array, so the
+  client's array-fallback in `discImdbScore()` is no longer the *only* way
+  the score is visible; (c) normalize leftover `''` / `'N/A'` to `NULL` so
+  a naive `SELECT AVG(imdb_rating)` doesn't coerce those rows to zero and
+  drag the SQL mean below the UI's average. The same rescue + null-out runs
+  on every `/api/maintenance/recalculate-stats` invocation (see §4.5) so
+  the data can be repaired without a restart.
 
 ### 4.3 `src/omdb.js` — OMDB client
 
@@ -163,7 +176,7 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 | DELETE | `/api/discs/:id`              | delete the row and its uploaded image            |
 | GET    | `/api/omdb/search?q=&type=&y=` | proxied OMDB search (`type` ∈ `movie`, `series`; optional 4-digit `y` year); returns `{ results, totalResults }`. Errors forward OMDB's `code` (e.g. `OMDB_TOO_MANY`) |
 | GET    | `/api/omdb/detail/:imdbID`    | proxied OMDB detail                              |
-| POST   | `/api/maintenance/recalculate-stats` | in-app counterpart to `scripts/backfill-omdb.js`: re-fetches OMDB data for rows whose IMDb score the stats can't see and writes back `imdb_rating`, `ratings`, `omdb_raw`. Returns `{ total, missing, fixable, fixed, stillEmpty, failed }`. Surfaced by the Settings modal's "Recalculate stats" button. |
+| POST   | `/api/maintenance/recalculate-stats` | in-app counterpart to `scripts/backfill-omdb.js`. Runs two passes: (1) **rescue** — promote the IMDb score from the `ratings` JSON array into the dedicated `imdb_rating` column for rows that only had it in the array (and null out leftover `''` / `'N/A'`), so a naive `SELECT AVG(imdb_rating)` matches the stats page; (2) **refetch** — for rows still missing a score, re-fetch from OMDB and write back `imdb_rating`, `ratings`, `omdb_raw`. Returns `{ total, missing, fixable, rescued, fixed, stillEmpty, failed }`. Surfaced by the Settings modal's "Recalculate stats" button. |
 
 The list route ships the **entire collection** on every page load, so it
 projects an explicit column list (`LIST_COLUMNS`) instead of `SELECT *`. The
@@ -616,7 +629,19 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-23 (added a Settings modal accessed via a cog button in
+*Last revised: 2026-06-23 (follow-up to the in-app Recalculate stats fix: the
+SQL `AVG(imdb_rating)` was sitting ~0.6 below the stats page's "Avg IMDb
+rating" because early inserts only ever wrote the IMDb score to the `ratings`
+JSON array, leaving the dedicated `imdb_rating` column blank or `'N/A'`. The
+client's `discImdbScore()` already handled this via the array fallback — that's
+why the UI was right — but a naive SQL average never looked at the array and
+coerced the `'N/A'` / `''` rows to zero. Added an idempotent **rescue** pass
+that promotes the array's IMDb value (`"6.2/10"` → `6.2`) into the column, and
+a follow-up pass that nulls out leftover `''` / `'N/A'` so the SQL mean stops
+being dragged down. Both passes run in `ensureColumns()` on boot AND in
+`/api/maintenance/recalculate-stats`, so the data heals without shell access;
+the route now returns a `rescued` count which the Settings modal surfaces
+alongside `fixed` / `stillEmpty` / `failed`. Previous: added a Settings modal accessed via a cog button in
 the header, hosting a "Recalculate stats" action. The action POSTs to a new
 `/api/maintenance/recalculate-stats` route — the in-app, HTTP-driven
 counterpart to `scripts/backfill-omdb.js` — so hosts without easy shell access

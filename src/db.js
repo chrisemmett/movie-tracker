@@ -136,6 +136,45 @@ async function ensureColumns(conn) {
         AND omdb_raw IS NOT NULL
         AND JSON_UNQUOTE(JSON_EXTRACT(omdb_raw, '$.imdbRating')) NOT IN ('', 'N/A')`
   );
+
+  // Recover IMDb scores stashed in the `ratings` JSON array for rows whose
+  // dedicated `imdb_rating` column was never populated. Older inserts only
+  // wrote the array, leaving the column blank and `SELECT AVG(imdb_rating)`
+  // blind to those titles (and coercing literal '' / 'N/A' rows to zero,
+  // which silently drags the SQL average down). The client's
+  // discImdbScore() already falls back to the array, so the UI was right —
+  // this brings the column into agreement. Idempotent: once the score is
+  // promoted, the WHERE clause filters the row out next time.
+  // JSON_SEARCH returns the path to the IMDb entry's `source` field, e.g.
+  // '"$[0].source"' — swap `.source` for `.value`, pull the value
+  // ("6.2/10"), and trim the "/10" suffix.
+  await conn.query(
+    `UPDATE movies
+        SET imdb_rating = SUBSTRING_INDEX(
+          JSON_UNQUOTE(JSON_EXTRACT(
+            ratings,
+            REPLACE(
+              JSON_UNQUOTE(JSON_SEARCH(LOWER(ratings), 'one', '%imdb%', NULL, '$[*].source')),
+              '.source', '.value'
+            )
+          )),
+          '/',
+          1
+        )
+      WHERE (imdb_rating IS NULL OR TRIM(imdb_rating) IN ('', 'N/A'))
+        AND ratings IS NOT NULL
+        AND JSON_LENGTH(ratings) > 0
+        AND JSON_SEARCH(LOWER(ratings), 'one', '%imdb%', NULL, '$[*].source') IS NOT NULL`
+  );
+
+  // Normalize leftover '' / 'N/A' to NULL so a naive
+  // SELECT AVG(imdb_rating) FROM movies returns the same number the stats
+  // page shows, instead of coercing those non-numeric strings to zero.
+  await conn.query(
+    `UPDATE movies
+        SET imdb_rating = NULL
+      WHERE TRIM(IFNULL(imdb_rating, '')) IN ('', 'N/A')`
+  );
 }
 
 async function initDb({ retries = 10, delayMs = 3000 } = {}) {

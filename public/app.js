@@ -615,11 +615,14 @@
       status = '<div class="err-msg">' + escapeHtml(s.error) + '</div>';
     } else if (s.result) {
       var r = s.result;
-      var parts = ['Done. ' + r.fixed + ' title' + (r.fixed === 1 ? '' : 's') + ' rescored'];
+      var rescued = Number(r.rescued) || 0;
+      var parts = [];
+      if (rescued) parts.push(rescued + ' score' + (rescued === 1 ? '' : 's') + ' recovered from cached OMDb data');
+      parts.push(r.fixed + ' title' + (r.fixed === 1 ? '' : 's') + ' rescored from OMDb');
       if (r.stillEmpty) parts.push(r.stillEmpty + ' had no OMDb score');
       if (r.failed) parts.push(r.failed + ' lookup' + (r.failed === 1 ? '' : 's') + ' failed');
-      var msg = parts.join(', ') + '.';
-      if (!r.fixable) msg = 'Nothing to recalculate — every title with an IMDb ID already has a score.';
+      var msg = 'Done. ' + parts.join(', ') + '.';
+      if (!rescued && !r.fixable) msg = 'Nothing to recalculate — every title with an IMDb ID already has a score.';
       status = '<div class="recalc-result">' + escapeHtml(msg) + '</div>';
     }
     return '<div class="overlay top' + animCls + '" data-action="overlay" data-modal="settings">' +
