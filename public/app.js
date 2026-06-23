@@ -152,7 +152,7 @@
       if (state.plex === 'plex' && !d.ripped) return false;
       if (state.plex === 'not-plex' && d.ripped) return false;
       if (!q) return true;
-      return (d.title + ' ' + d.studio + ' ' + d.distributor + ' ' + d.director + ' ' + d.cast + ' ' + d.year)
+      return (d.title + ' ' + d.studio + ' ' + d.distributor + ' ' + d.director + ' ' + d.cast + ' ' + d.year + ' ' + (d.genre || ''))
         .toLowerCase().indexOf(q) >= 0;
     });
     return list.sort(function (a, b) {
@@ -284,7 +284,7 @@
   // ---------- content ----------
   function renderContent() {
     var el = document.getElementById('content');
-    if (state.view === 'stats') { el.innerHTML = statsHTML(); return; }
+    if (state.view === 'stats') { el.innerHTML = statsHTML(); animateStats(); return; }
     var cards = filteredSorted();
     if (cards.length === 0) { el.innerHTML = emptyHTML(); return; }
     el.innerHTML = state.view === 'wall' ? wallHTML(cards) : shelfHTML(cards);
@@ -396,18 +396,63 @@
     });
     return limit ? arr.slice(0, limit) : arr;
   }
-  function bars(items, accentByKey) {
+  // A horizontal bar list. `drillFor(key)` is optional: when it returns a
+  // descriptor ({ q } | { fmt } | { plex }) the row becomes a clickable
+  // "drill-down" that jumps to the wall filtered by that dimension (see the
+  // 'stats-drill' action). Each descriptor sets exactly one filter and the
+  // dispatcher resets the others, so a click always lands on a clean view.
+  // Bars render at width:0 with the real width on `data-w`; animateStats()
+  // grows them in after the view mounts.
+  function bars(items, accentByKey, drillFor) {
     if (!items.length) return '<div class="stat-empty">No data yet.</div>';
     var max = items.reduce(function (m, it) { return it.count > m ? it.count : m; }, 0);
     return '<ul class="bar-list">' + items.map(function (it) {
       var pct = max ? Math.round((it.count / max) * 100) : 0;
       var color = accentByKey ? accentByKey(it.key) : '#e7b34c';
-      return '<li class="bar-row">' +
-        '<span class="bar-label" title="' + escapeHtml(it.key) + '">' + escapeHtml(it.key) + '</span>' +
-        '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%;background:' + color + '"></span></span>' +
-        '<span class="bar-count">' + it.count + '</span>' +
-      '</li>';
+      var label = escapeHtml(it.key);
+      var inner =
+        '<span class="bar-label" title="' + label + '">' + label + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" data-w="' + pct + '" style="width:0;background:' + color + '"></span></span>' +
+        '<span class="bar-count">' + it.count + '</span>';
+      var drill = drillFor ? drillFor(it.key) : null;
+      if (drill) {
+        var attrs = '';
+        if (drill.q != null) attrs += ' data-q="' + escapeHtml(drill.q) + '"';
+        if (drill.fmt != null) attrs += ' data-fmt="' + escapeHtml(drill.fmt) + '"';
+        if (drill.plex != null) attrs += ' data-plex="' + escapeHtml(drill.plex) + '"';
+        return '<li class="bar-row drillable" data-action="stats-drill"' + attrs +
+          ' title="Show these titles">' + inner + '</li>';
+      }
+      return '<li class="bar-row">' + inner + '</li>';
     }).join('') + '</ul>';
+  }
+
+  // Pick the disc that maximises `score(d)` among those with a positive score.
+  // Used by the spotlight row (top rated, longest, oldest, newest).
+  function pickExtreme(discs, score) {
+    var best = null, bestVal = -Infinity;
+    discs.forEach(function (d) {
+      var v = score(d);
+      if (v > 0 && v > bestVal) { bestVal = v; best = d; }
+    });
+    return best ? { disc: best, value: bestVal } : null;
+  }
+  function discYear(d) { return parseInt(d.year, 10) || 0; }
+
+  // A clickable spotlight card: poster thumb + a kicker/title/value, opening
+  // the disc's detail modal on click. `pick` is a { disc, value } from
+  // pickExtreme(); `fmtValue` turns the numeric value into a display string.
+  function spotlightCard(kicker, pick, fmtValue) {
+    if (!pick) return '';
+    var d = pick.disc;
+    return '<div class="spotlight" data-action="open-detail" data-id="' + d.id + '" title="' + escapeHtml(d.title) + '">' +
+      '<div class="spot-thumb">' + posterOrHouse(d, 'card') + '</div>' +
+      '<div class="spot-info">' +
+        '<div class="spot-kicker">' + kicker + '</div>' +
+        '<div class="spot-title">' + escapeHtml(d.title) + '</div>' +
+        '<div class="spot-value">' + fmtValue(pick.value, d) + '</div>' +
+      '</div>' +
+    '</div>';
   }
 
   function statsHTML() {
@@ -431,6 +476,25 @@
     var avgImdb = imdbScores.length
       ? (imdbScores.reduce(function (s, n) { return s + n; }, 0) / imdbScores.length).toFixed(1)
       : '—';
+
+    // IMDb-score distribution, high band first. Rating isn't part of the
+    // searchable text, so these bars stay display-only (not drillable).
+    var scoreBands = [
+      { key: '9.0 +', test: function (n) { return n >= 9; } },
+      { key: '8.0–8.9', test: function (n) { return n >= 8 && n < 9; } },
+      { key: '7.0–7.9', test: function (n) { return n >= 7 && n < 8; } },
+      { key: '6.0–6.9', test: function (n) { return n >= 6 && n < 7; } },
+      { key: 'Under 6', test: function (n) { return n > 0 && n < 6; } },
+    ];
+    var ratingItems = scoreBands.map(function (b) {
+      return { key: b.key, count: imdbScores.filter(b.test).length };
+    });
+
+    // Spotlight extremes for the highlights row.
+    var topRated = pickExtreme(discs, discImdbScore);
+    var longest = pickExtreme(discs, function (d) { return parseRuntimeMinutes(d.runtime); });
+    var newest = pickExtreme(discs, discYear);
+    var oldest = pickExtreme(discs, function (d) { var y = discYear(d); return y > 0 ? (10000 - y) : 0; });
 
     // Decades
     var decadeItems = tallyTop(discs.map(function (d) {
@@ -466,7 +530,16 @@
     ].filter(function (it) { return it.count > 0; })
      .sort(function (a, b) { return b.count - a.count; });
     var FORMAT_COLOR = { 'Blu-ray': '#4d8df0', '4K UHD': '#e7b34c', 'Apple TV': '#a78bfa' };
+    var FORMAT_KEY = { 'Blu-ray': 'bluray', '4K UHD': 'uhd', 'Apple TV': 'appletv' };
     var formatColor = function (k) { return FORMAT_COLOR[k] || '#e7b34c'; };
+
+    // Drill descriptors. A label maps to one filter dimension; the
+    // 'stats-drill' action sets it, clears the others, and switches to the
+    // wall. Genres/directors/studios drill via the search box (genre is part
+    // of the searchable text); formats and Plex status drill via their filters.
+    var drillFmt = function (k) { return FORMAT_KEY[k] ? { fmt: FORMAT_KEY[k] } : null; };
+    var drillPlex = function (k) { return { plex: k === 'Ripped' ? 'plex' : 'not-plex' }; };
+    var drillQuery = function (k) { return { q: k }; };
 
     var bigStat = function (num, cap, sub) {
       return '<div class="big-stat"><div class="big-num">' + num + '</div>' +
@@ -479,6 +552,12 @@
         '<h3 class="stats-panel-title">' + title + '</h3>' + body + '</section>';
     };
 
+    var spotlights =
+      spotlightCard('★ Top rated', topRated, function (v) { return v.toFixed(1) + ' IMDb'; }) +
+      spotlightCard('⏱ Longest', longest, function (v) { return v + ' min'; }) +
+      spotlightCard('✦ Newest', newest, function (v, d) { return escapeHtml(d.year); }) +
+      spotlightCard('⌛ Oldest', oldest, function (v, d) { return escapeHtml(d.year); });
+
     return '<div class="stats-wrap">' +
       '<div class="big-stats">' +
         bigStat(total, 'Total discs', '') +
@@ -486,19 +565,37 @@
         bigStat(runtimeDays + 'd', 'Total runtime', totalRuntime + ' min across ' + imdbScores.length + ' rated titles') +
         bigStat(avgImdb, 'Avg IMDb rating', imdbScores.length + ' titles scored') +
       '</div>' +
+      (spotlights ? '<section class="stats-panel spotlight-panel">' +
+        '<h3 class="stats-panel-title">Collection highlights</h3>' +
+        '<div class="spotlight-row">' + spotlights + '</div>' +
+      '</section>' : '') +
       '<div class="stats-grid">' +
-        panel('By format', bars(formatItems, formatColor)) +
+        panel('By format', bars(formatItems, formatColor, drillFmt)) +
         panel('Plex status', bars([
           { key: 'Ripped', count: ripped },
           { key: 'Not ripped', count: notRipped },
-        ], function (k) { return k === 'Ripped' ? '#e7b34c' : '#4a4843'; })) +
+        ], function (k) { return k === 'Ripped' ? '#e7b34c' : '#4a4843'; }, drillPlex)) +
+        panel('IMDb ratings', bars(ratingItems, function () { return '#e7b34c'; })) +
         panel('By decade', bars(decadeItems)) +
-        panel('Top genres', bars(genreItems)) +
+        panel('Top genres', bars(genreItems, null, drillQuery)) +
         panel('MPAA rating', bars(ratedItems)) +
-        panel('Top directors', bars(directorItems)) +
-        panel('Top studios', bars(studioItems)) +
+        panel('Top directors', bars(directorItems, null, drillQuery)) +
+        panel('Top studios', bars(studioItems, null, drillQuery)) +
       '</div>' +
     '</div>';
+  }
+
+  // Grow the stats bars in from zero once the view is mounted. renderContent()
+  // injects them at width:0 with the target on data-w; a rAF flip lets the
+  // existing `.bar-fill` width transition animate them up.
+  function animateStats() {
+    var fills = document.querySelectorAll('#content .bar-fill[data-w]');
+    if (!fills.length) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        fills.forEach(function (el) { el.style.width = el.getAttribute('data-w') + '%'; });
+      });
+    });
   }
 
   // ---------- modals ----------
@@ -1211,6 +1308,18 @@
         closeAdd();
         return openDetail(el.dataset.id);
       case 'az-jump': return jumpToLetter(el.dataset.letter);
+      case 'stats-drill': {
+        // Each drill sets exactly one filter dimension and resets the others,
+        // then drops the user onto the wall scrolled to the top.
+        state.query = el.dataset.q || '';
+        state.fmt = el.dataset.fmt || 'all';
+        state.plex = el.dataset.plex || 'all';
+        state.view = 'wall';
+        state.menuOpen = false;
+        renderToolbar(); renderContent();
+        window.scrollTo(0, 0);
+        return;
+      }
     }
   }
 
