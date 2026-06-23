@@ -316,6 +316,40 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 router.post('/api/maintenance/recalculate-stats', async (req, res, next) => {
   try {
     const pool = getPool();
+
+    // Free rescue first: many rows that look "missing a score" actually
+    // carry one in the `ratings` JSON (under source: "IMDb") — early inserts
+    // only ever wrote the array. Promote that value into the dedicated
+    // `imdb_rating` column so the UI and a naive SQL AVG agree. No OMDB call
+    // needed, idempotent.
+    const [rescueResult] = await pool.query(
+      `UPDATE movies
+          SET imdb_rating = SUBSTRING_INDEX(
+            JSON_UNQUOTE(JSON_EXTRACT(
+              ratings,
+              REPLACE(
+                JSON_UNQUOTE(JSON_SEARCH(LOWER(ratings), 'one', '%imdb%', NULL, '$[*].source')),
+                '.source', '.value'
+              )
+            )),
+            '/',
+            1
+          )
+        WHERE (imdb_rating IS NULL OR TRIM(imdb_rating) IN ('', 'N/A'))
+          AND ratings IS NOT NULL
+          AND JSON_LENGTH(ratings) > 0
+          AND JSON_SEARCH(LOWER(ratings), 'one', '%imdb%', NULL, '$[*].source') IS NOT NULL`
+    );
+    const rescued = rescueResult.affectedRows || 0;
+
+    // Null out leftover '' / 'N/A' so SELECT AVG(imdb_rating) returns the
+    // same number the stats page does instead of treating them as zeros.
+    await pool.query(
+      `UPDATE movies
+          SET imdb_rating = NULL
+        WHERE TRIM(IFNULL(imdb_rating, '')) IN ('', 'N/A')`
+    );
+
     const [[summary]] = await pool.query(
       `SELECT
          COUNT(*) AS total,
@@ -329,7 +363,7 @@ router.post('/api/maintenance/recalculate-stats', async (req, res, next) => {
     const missing = Number(summary.missing) || 0;
     const fixable = Number(summary.fixable) || 0;
     if (!fixable) {
-      return res.json({ total, missing, fixable, fixed: 0, stillEmpty: 0, failed: 0 });
+      return res.json({ total, missing, fixable, rescued, fixed: 0, stillEmpty: 0, failed: 0 });
     }
 
     const [rows] = await pool.query(
@@ -361,7 +395,7 @@ router.post('/api/maintenance/recalculate-stats', async (req, res, next) => {
       }
       if (i < rows.length - 1) await sleep(DELAY_MS);
     }
-    res.json({ total, missing, fixable, fixed, stillEmpty, failed });
+    res.json({ total, missing, fixable, rescued, fixed, stillEmpty, failed });
   } catch (err) {
     next(err);
   }
