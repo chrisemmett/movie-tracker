@@ -163,6 +163,7 @@ configured. Backend is CommonJS; frontend is a hand-written IIFE.
 | DELETE | `/api/discs/:id`              | delete the row and its uploaded image            |
 | GET    | `/api/omdb/search?q=&type=&y=` | proxied OMDB search (`type` ∈ `movie`, `series`; optional 4-digit `y` year); returns `{ results, totalResults }`. Errors forward OMDB's `code` (e.g. `OMDB_TOO_MANY`) |
 | GET    | `/api/omdb/detail/:imdbID`    | proxied OMDB detail                              |
+| POST   | `/api/maintenance/recalculate-stats` | in-app counterpart to `scripts/backfill-omdb.js`: re-fetches OMDB data for rows whose IMDb score the stats can't see and writes back `imdb_rating`, `ratings`, `omdb_raw`. Returns `{ total, missing, fixable, fixed, stillEmpty, failed }`. Surfaced by the Settings modal's "Recalculate stats" button. |
 
 The list route ships the **entire collection** on every page load, so it
 projects an explicit column list (`LIST_COLUMNS`) instead of `SELECT *`. The
@@ -448,6 +449,19 @@ The whole frontend is one IIFE with no framework. Key pieces:
   direct children of `.header` (no `.header-right` wrapper) so that, on
   mobile, the brand and Add button share the top row while the stats reflow
   to a compact full-width strip beneath them.
+- **Settings modal**: a cog button (`.btn-cog`, `data-action="open-settings"`)
+  sits to the right of the header's Add button and opens a Settings modal
+  (`settingsModalHTML()`, tracked by `state.settingsOpen`). Currently it
+  hosts a single Maintenance section with a **Recalculate stats** button
+  (`recalculateStats()`) that POSTs to `/api/maintenance/recalculate-stats`
+  — the in-app counterpart to `scripts/backfill-omdb.js` for hosts where
+  shell access into the container isn't easy. While the request is in
+  flight the button disables itself and `state.recalc.running` drives a
+  spinner; on completion the server's `{ fixed, stillEmpty, failed }`
+  summary is rendered and `loadDiscs()` is called so the stats page sees
+  the freshly-scored titles immediately. Closing the modal mid-run does
+  not cancel the server-side work — the result lands in
+  `state.recalc.result` either way and reopening the modal surfaces it.
 - **Duplicate-title guard**: when a save returns `409 DUPLICATE_TITLE`,
   the details form stays open, the title input is focused and selected,
   and a red inline warning is rendered above the fields with a
@@ -602,7 +616,15 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-22 (follow-up to the "Avg IMDb rating" fix: the boot
+*Last revised: 2026-06-23 (added a Settings modal accessed via a cog button in
+the header, hosting a "Recalculate stats" action. The action POSTs to a new
+`/api/maintenance/recalculate-stats` route — the in-app, HTTP-driven
+counterpart to `scripts/backfill-omdb.js` — so hosts without easy shell access
+into the `app` container can repair the stats-page IMDb-score gap from the UI.
+The route reuses the script's `NEEDS_BACKFILL` filter and the same OMDB-detail
+lookup + write-back of `imdb_rating`, `ratings`, and `omdb_raw`, rate-limited
+by `BACKFILL_DELAY_MS`, and returns a `{ total, missing, fixable, fixed,
+stillEmpty, failed }` summary that the modal renders. Previous: follow-up to the "Avg IMDb rating" fix: the boot
 migration that was meant to un-stick the average for existing rows was a no-op,
 because it read the score from `omdb_raw` — a column the app never persisted
 either, so there was nothing to read. Added `scripts/backfill-omdb.js`

@@ -292,6 +292,81 @@ router.patch('/api/discs/:id/ripped', async (req, res, next) => {
   }
 });
 
+// Identifies rows whose IMDb score the stats page can't see — neither the
+// dedicated `imdb_rating` column nor an IMDb entry in the `ratings` array
+// carries a usable number. Mirrors the client's `discImdbScore()` and the
+// `NEEDS_BACKFILL` filter in `scripts/backfill-omdb.js`.
+const NEEDS_BACKFILL_SQL = `
+  (imdb_rating IS NULL OR TRIM(imdb_rating) IN ('', 'N/A'))
+  AND (
+    ratings IS NULL
+    OR JSON_LENGTH(ratings) = 0
+    OR JSON_SEARCH(LOWER(ratings), 'one', '%imdb%', NULL, '$[*].source') IS NULL
+  )
+`;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// On-demand counterpart to `scripts/backfill-omdb.js`: find rows whose IMDb
+// score went missing (the stats page can't average a title without one),
+// re-fetch each from OMDB by `imdb_id`, and write back `imdb_rating`,
+// `ratings`, and `omdb_raw`. Idempotent — safe to run repeatedly — and
+// rate-limited via `BACKFILL_DELAY_MS` (default 150 ms). Returns a summary
+// the Settings page surfaces to the user.
+router.post('/api/maintenance/recalculate-stats', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [[summary]] = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN ${NEEDS_BACKFILL_SQL} THEN 1 ELSE 0 END) AS missing,
+         SUM(CASE WHEN (${NEEDS_BACKFILL_SQL})
+                   AND imdb_id IS NOT NULL AND TRIM(imdb_id) <> ''
+                  THEN 1 ELSE 0 END) AS fixable
+       FROM movies`
+    );
+    const total = Number(summary.total) || 0;
+    const missing = Number(summary.missing) || 0;
+    const fixable = Number(summary.fixable) || 0;
+    if (!fixable) {
+      return res.json({ total, missing, fixable, fixed: 0, stillEmpty: 0, failed: 0 });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT id, imdb_id FROM movies
+        WHERE (${NEEDS_BACKFILL_SQL})
+          AND imdb_id IS NOT NULL AND TRIM(imdb_id) <> ''
+        ORDER BY id`
+    );
+    const DELAY_MS = Number(process.env.BACKFILL_DELAY_MS || 150);
+    let fixed = 0;
+    let stillEmpty = 0;
+    let failed = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      try {
+        const d = await omdb.detail(row.imdb_id);
+        const score = (d.imdb_rating || '').trim();
+        if (!score || score === 'N/A') {
+          stillEmpty++;
+        } else {
+          await pool.query(
+            'UPDATE movies SET imdb_rating = ?, ratings = ?, omdb_raw = ? WHERE id = ?',
+            [score, JSON.stringify(d.ratings || []), JSON.stringify(d.omdb_raw || null), row.id]
+          );
+          fixed++;
+        }
+      } catch (err) {
+        failed++;
+      }
+      if (i < rows.length - 1) await sleep(DELAY_MS);
+    }
+    res.json({ total, missing, fixable, fixed, stillEmpty, failed });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/api/discs/:id', async (req, res, next) => {
   try {
     const [rows] = await getPool().query('SELECT image_file FROM movies WHERE id = ?', [req.params.id]);

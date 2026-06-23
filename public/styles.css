@@ -75,6 +75,14 @@ body.modal-open { overflow: hidden; }
 }
 .btn-add:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(231,179,76,0.38); }
 .btn-add span { font-size: 19px; line-height: 0; }
+.btn-cog {
+  width: 40px; height: 40px; padding: 0; margin-left: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 7px; color: #cfccc4; font-size: 18px; line-height: 1;
+  cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+.btn-cog:hover { background: rgba(255,255,255,0.12); border-color: rgba(231,179,76,0.4); color: #e7b34c; transform: rotate(35deg); }
 
 /* ---------- Toolbar ---------- */
 .toolbar {
@@ -398,6 +406,13 @@ body.modal-open { overflow: hidden; }
 .back-link:hover { color: #e7b34c; }
 .btn-save { background: #e7b34c; color: #0a0a0d; border: none; border-radius: 7px; padding: 11px 22px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; box-shadow: 0 6px 18px rgba(231,179,76,0.25); }
 
+/* ---------- Settings modal ---------- */
+.settings-section { display: flex; flex-direction: column; gap: 4px; }
+.settings-section-title { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: #9b988f; margin-bottom: 6px; }
+.settings-help { font-family: 'Barlow', sans-serif; font-size: 13.5px; line-height: 1.55; color: #cfccc4; margin: 0 0 14px; }
+.settings-action-row { display: flex; align-items: center; gap: 12px; }
+.recalc-result { margin-top: 14px; font-family: 'Barlow', sans-serif; font-size: 13px; color: #cfccc4; }
+
 @media (max-width: 720px) {
   /* Single-scroll detail: poster becomes a faint backdrop and the body fills
      the whole modal as the only scroll region. */
@@ -427,6 +442,7 @@ body.modal-open { overflow: hidden; }
   .brand-sub { font-size: 8px; letter-spacing: 0.18em; margin-top: 3px; }
 
   .btn-add { margin-left: 0; padding: 9px 14px; font-size: 15px; box-shadow: none; flex: 0 0 auto; }
+  .btn-cog { width: 36px; height: 36px; margin-left: 6px; font-size: 16px; flex: 0 0 auto; }
 
   .stats {
     order: 3; flex: 1 1 100%; margin-left: 0;
