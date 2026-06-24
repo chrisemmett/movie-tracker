@@ -242,12 +242,56 @@ body.modal-open { overflow: hidden; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bar-track { height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
-.bar-fill { display: block; height: 100%; border-radius: 4px; transition: width .3s ease; }
+.bar-fill { display: block; height: 100%; border-radius: 4px; transition: width .55s cubic-bezier(.22,.61,.36,1); }
 .bar-count {
   font-family: 'Space Mono', monospace; font-size: 11px; color: #cfccc4; text-align: right;
 }
 .stat-empty {
   font-family: 'Barlow', sans-serif; font-size: 13px; color: #6c6a64; padding: 6px 0;
+}
+
+/* Drillable bar rows jump to a filtered wall — give them a click affordance. */
+.bar-row.drillable {
+  cursor: pointer; border-radius: 6px; margin: 0 -8px; padding: 3px 8px;
+  transition: background .12s ease;
+}
+.bar-row.drillable:hover { background: rgba(231,179,76,0.08); }
+.bar-row.drillable:hover .bar-label { color: #f3e7cf; }
+
+/* Collection highlights — poster-led spotlight cards. */
+.spotlight-panel { padding-bottom: 20px; }
+.spotlight-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px;
+}
+.spotlight {
+  display: flex; gap: 12px; align-items: center; cursor: pointer;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; padding: 10px; transition: border-color .15s ease, transform .15s ease, background .15s ease;
+}
+.spotlight:hover {
+  border-color: rgba(231,179,76,0.5); transform: translateY(-2px);
+  background: rgba(231,179,76,0.05);
+}
+.spot-thumb {
+  position: relative; width: 52px; height: 78px; flex: 0 0 52px; border-radius: 6px;
+  overflow: hidden; background: #0b0b0f;
+}
+.spot-thumb .card-img, .spot-thumb .house {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.spot-thumb .house-initial { font-size: 26px; }
+.spot-info { min-width: 0; }
+.spot-kicker {
+  font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #e7b34c;
+}
+.spot-title {
+  font-family: 'Barlow', sans-serif; font-size: 14px; color: #e9e6df; margin-top: 4px;
+  font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.spot-value {
+  font-family: 'Space Mono', monospace; font-size: 11px; color: #9b988f; margin-top: 3px;
 }
 
 /* ---------- Empty ---------- */

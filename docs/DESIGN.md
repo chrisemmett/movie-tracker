@@ -421,10 +421,32 @@ The whole frontend is one IIFE with no framework. Key pieces:
   these settings live only in the browser. Add future preferences as new keys
   on `DEFAULT_SETTINGS`.
 - **Stats view**: aggregates totals, runtime, average IMDb rating, top
-  genres / directors / studios / decades — all computed in-browser. The
+  genres / directors / studios / decades — all computed in-browser. Layout,
+  top to bottom: four headline `big-stat` tiles, a **Collection highlights**
+  spotlight row, then the `stats-grid` of bar panels. The
   average IMDb rating scores each disc via `discImdbScore()`, which prefers
   the dedicated `imdbRating` field and falls back to the IMDb entry in the
-  `ratings` array. The two OMDB sources don't have equal coverage —
+  `ratings` array.
+  - **Collection highlights** (`spotlightCard()`): up to four poster-led
+    cards — top rated, longest, newest, oldest — chosen by `pickExtreme()`
+    (the disc maximising a per-card score; cards with no qualifying disc are
+    omitted, and the whole panel disappears if none qualify). Each card is a
+    `data-action="open-detail"` shortcut into that disc's detail modal.
+  - **IMDb ratings** panel: a fixed-band histogram (`9.0+`, `8.0–8.9`, …,
+    `Under 6`) of `discImdbScore()` values. Display-only — rating isn't part
+    of the searchable text, so it isn't drillable.
+  - **Drill-down bars**: `bars()` takes an optional `drillFor(key)` returning
+    a single-dimension descriptor (`{ q }` search text, `{ fmt }`, or
+    `{ plex }`). Drillable rows carry `data-action="stats-drill"`; the
+    dispatcher sets that one filter, resets the others, and switches to the
+    wall. By-format drills the format filter, Plex-status drills the Plex
+    filter, and genres / directors / studios drill the search box (genre is
+    now part of `filteredSorted()`'s searchable text so a genre query
+    matches). By-decade and MPAA-rating bars stay display-only.
+  - **Entrance animation**: bar fills render at `width:0` with the target on
+    `data-w`; `animateStats()` (called by `renderContent()` after mounting
+    the stats view) flips them to the real width on a double-rAF so the
+    `.bar-fill` width transition grows them in. The two OMDB sources don't have equal coverage —
   `imdbRating` is populated for far more titles than the `Ratings` array,
   which is frequently empty for less-mainstream releases — so a title is
   counted as long as *either* carries a score. Titles saved before the app
@@ -629,7 +651,16 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-23 (follow-up to the in-app Recalculate stats fix: the
+*Last revised: 2026-06-23 (stats page made more engaging: added a **Collection
+highlights** spotlight row of poster-led cards — top rated / longest / newest /
+oldest, each via `pickExtreme()` and linking into the detail modal — plus an
+**IMDb ratings** histogram panel. Bar rows are now optionally **drillable**
+(`bars()` gained a `drillFor(key)` arg yielding a `{ q }`/`{ fmt }`/`{ plex }`
+descriptor): by-format, Plex-status, genre, director, and studio bars jump to a
+filtered wall via the new `stats-drill` action, which sets one filter dimension
+and resets the rest. `genre` was added to `filteredSorted()`'s searchable text
+so genre drills resolve through the search box. Bars animate in from zero via
+`animateStats()`. Previous: follow-up to the in-app Recalculate stats fix: the
 SQL `AVG(imdb_rating)` was sitting ~0.6 below the stats page's "Avg IMDb
 rating" because early inserts only ever wrote the IMDb score to the `ratings`
 JSON array, leaving the dedicated `imdb_rating` column blank or `'N/A'`. The
