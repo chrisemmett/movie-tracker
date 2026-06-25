@@ -396,39 +396,9 @@
     });
     return limit ? arr.slice(0, limit) : arr;
   }
-  // A horizontal bar list. `drillFor(key)` is optional: when it returns a
-  // descriptor ({ q } | { fmt } | { plex }) the row becomes a clickable
-  // "drill-down" that jumps to the wall filtered by that dimension (see the
-  // 'stats-drill' action). Each descriptor sets exactly one filter and the
-  // dispatcher resets the others, so a click always lands on a clean view.
-  // Bars render at width:0 with the real width on `data-w`; animateStats()
-  // grows them in after the view mounts.
-  function bars(items, accentByKey, drillFor) {
-    if (!items.length) return '<div class="stat-empty">No data yet.</div>';
-    var max = items.reduce(function (m, it) { return it.count > m ? it.count : m; }, 0);
-    return '<ul class="bar-list">' + items.map(function (it) {
-      var pct = max ? Math.round((it.count / max) * 100) : 0;
-      var color = accentByKey ? accentByKey(it.key) : '#e7b34c';
-      var label = escapeHtml(it.key);
-      var inner =
-        '<span class="bar-label" title="' + label + '">' + label + '</span>' +
-        '<span class="bar-track"><span class="bar-fill" data-w="' + pct + '" style="width:0;background:' + color + '"></span></span>' +
-        '<span class="bar-count">' + it.count + '</span>';
-      var drill = drillFor ? drillFor(it.key) : null;
-      if (drill) {
-        var attrs = '';
-        if (drill.q != null) attrs += ' data-q="' + escapeHtml(drill.q) + '"';
-        if (drill.fmt != null) attrs += ' data-fmt="' + escapeHtml(drill.fmt) + '"';
-        if (drill.plex != null) attrs += ' data-plex="' + escapeHtml(drill.plex) + '"';
-        return '<li class="bar-row drillable" data-action="stats-drill"' + attrs +
-          ' title="Show these titles">' + inner + '</li>';
-      }
-      return '<li class="bar-row">' + inner + '</li>';
-    }).join('') + '</ul>';
-  }
 
   // Pick the disc that maximises `score(d)` among those with a positive score.
-  // Used by the spotlight row (top rated, longest, oldest, newest).
+  // Used by the highlights row (top rated, longest, oldest, newest).
   function pickExtreme(discs, score) {
     var best = null, bestVal = -Infinity;
     discs.forEach(function (d) {
@@ -438,21 +408,111 @@
     return best ? { disc: best, value: bestVal } : null;
   }
   function discYear(d) { return parseInt(d.year, 10) || 0; }
+  function fmtThousands(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
 
-  // A clickable spotlight card: poster thumb + a kicker/title/value, opening
-  // the disc's detail modal on click. `pick` is a { disc, value } from
-  // pickExtreme(); `fmtValue` turns the numeric value into a display string.
-  function spotlightCard(kicker, pick, fmtValue) {
-    if (!pick) return '';
-    var d = pick.disc;
-    return '<div class="spotlight" data-action="open-detail" data-id="' + d.id + '" title="' + escapeHtml(d.title) + '">' +
-      '<div class="spot-thumb">' + posterOrHouse(d, 'card') + '</div>' +
-      '<div class="spot-info">' +
-        '<div class="spot-kicker">' + kicker + '</div>' +
-        '<div class="spot-title">' + escapeHtml(d.title) + '</div>' +
-        '<div class="spot-value">' + fmtValue(pick.value, d) + '</div>' +
-      '</div>' +
-    '</div>';
+  // Accent + format tokens. Accent values mirror the design's Amber ramp;
+  // format colors stay aligned with the rest of the app (chips, badges).
+  var STATS_ACCENT = { solid: '#e7b34c', bright: '#f2c95f', deep: '#c8922e', hue: 82 };
+  var STATS_ACCENT_VMETER = 'linear-gradient(180deg,' + STATS_ACCENT.bright + ',' + STATS_ACCENT.deep + ')';
+  var STATS_ACCENT_HMETER = 'linear-gradient(90deg,' + STATS_ACCENT.deep + ',' + STATS_ACCENT.bright + ')';
+  var STATS_FMT_COLOR = { bluray: '#4d8df0', uhd: '#e7b34c', appletv: '#a78bfa' };
+
+  // Catmull-Rom-style smoothing → SVG path string for the timeline area chart.
+  // Tension 0.16 matches the design prototype's curve shape (loose enough to
+  // round the peaks without overshooting decade neighbours).
+  function smoothPath(pts) {
+    if (!pts.length) return '';
+    var d = 'M ' + pts[0].x.toFixed(2) + ' ' + pts[0].y.toFixed(2);
+    var t = 0.16;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1] || pts[i];
+      var p1 = pts[i];
+      var p2 = pts[i + 1];
+      var p3 = pts[i + 2] || p2;
+      var c1x = p1.x + (p2.x - p0.x) * t;
+      var c1y = p1.y + (p2.y - p0.y) * t;
+      var c2x = p2.x - (p3.x - p1.x) * t;
+      var c2y = p2.y - (p3.y - p1.y) * t;
+      d += ' C ' + c1x.toFixed(2) + ' ' + c1y.toFixed(2) +
+           ', ' + c2x.toFixed(2) + ' ' + c2y.toFixed(2) +
+           ', ' + p2.x.toFixed(2) + ' ' + p2.y.toFixed(2);
+    }
+    return d;
+  }
+
+  // Squarified treemap (Bruls et al.) — packs `items` (each `{name, value}`)
+  // into rects of `{x,y,w,h,name,value}` filling the `w × h` box. Ported from
+  // the prototype's geometry helper.
+  function squarify(items, x, y, w, h) {
+    var data = items.slice().sort(function (a, b) { return b.value - a.value; });
+    var total = data.reduce(function (s, d) { return s + d.value; }, 0);
+    if (!total) return [];
+    var scale = (w * h) / total;
+    var nodes = data.map(function (d) {
+      return { name: d.name, value: d.value, area: d.value * scale };
+    });
+    var result = [];
+    var rect = { x: x, y: y, w: w, h: h };
+    function worst(r, side) {
+      var s = 0, mx = 0, mn = Infinity;
+      for (var k = 0; k < r.length; k++) {
+        var nd = r[k];
+        s += nd.area;
+        if (nd.area > mx) mx = nd.area;
+        if (nd.area < mn) mn = nd.area;
+      }
+      return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn));
+    }
+    function layout(r) {
+      var s = r.reduce(function (a, nd) { return a + nd.area; }, 0);
+      var k;
+      if (rect.w >= rect.h) {
+        var cw = s / rect.h, cy = rect.y;
+        for (k = 0; k < r.length; k++) {
+          var ch = r[k].area / cw;
+          result.push({ name: r[k].name, value: r[k].value, x: rect.x, y: cy, w: cw, h: ch });
+          cy += ch;
+        }
+        rect.x += cw; rect.w -= cw;
+      } else {
+        var ch2 = s / rect.w, cx = rect.x;
+        for (k = 0; k < r.length; k++) {
+          var cw2 = r[k].area / ch2;
+          result.push({ name: r[k].name, value: r[k].value, x: cx, y: rect.y, w: cw2, h: ch2 });
+          cx += cw2;
+        }
+        rect.y += ch2; rect.h -= ch2;
+      }
+    }
+    var row = [];
+    var queue = nodes.slice();
+    while (queue.length) {
+      var nd = queue[0];
+      var side = Math.min(rect.w, rect.h);
+      if (row.length === 0 || worst(row.concat([nd]), side) <= worst(row, side)) {
+        row.push(nd); queue.shift();
+      } else {
+        layout(row); row = [];
+      }
+    }
+    if (row.length) layout(row);
+    return result;
+  }
+
+  // Map an IMDb score to a 0–100% position on the 5-bucket histogram x-axis
+  // (`<6, 6, 7, 8, 9+`). Each bucket occupies 20% of the track; the score
+  // lands proportionally inside its bucket.
+  function ratingPositionPct(score) {
+    var s = score;
+    var idx, frac;
+    if (s < 6) { idx = 0; frac = Math.max(0, (s - 5)); }
+    else if (s < 7) { idx = 1; frac = s - 6; }
+    else if (s < 8) { idx = 2; frac = s - 7; }
+    else if (s < 9) { idx = 3; frac = s - 8; }
+    else { idx = 4; frac = Math.min(1, s - 9); }
+    return ((idx + frac) / 5) * 100;
   }
 
   function statsHTML() {
@@ -463,6 +523,11 @@
     var bluray = countWithFormat('bluray');
     var uhd = countWithFormat('uhd');
     var appletv = countWithFormat('appletv');
+    // The total disc/file count sums each title's format chips, so a title
+    // owned in two formats counts twice. Used as the donut center label and
+    // the hero strip's "discs & files" subline.
+    var formatSum = bluray + uhd + appletv;
+
     // Plex-status figures only count rippable (non Apple TV-only) titles.
     var rippableTotal = discs.filter(isRippable).length;
     var ripped = discs.filter(function (d) { return d.ripped && isRippable(d); }).length;
@@ -473,38 +538,40 @@
     var runtimeDays = (totalRuntime / 60 / 24).toFixed(1);
 
     var imdbScores = discs.map(function (d) { return discImdbScore(d); }).filter(function (n) { return n > 0; });
-    var avgImdb = imdbScores.length
-      ? (imdbScores.reduce(function (s, n) { return s + n; }, 0) / imdbScores.length).toFixed(1)
-      : '—';
+    var avgImdbN = imdbScores.length
+      ? imdbScores.reduce(function (s, n) { return s + n; }, 0) / imdbScores.length
+      : 0;
+    var avgImdb = imdbScores.length ? avgImdbN.toFixed(1) : '—';
 
-    // IMDb-score distribution, high band first. Rating isn't part of the
-    // searchable text, so these bars stay display-only (not drillable).
-    var scoreBands = [
-      { key: '9.0 +', test: function (n) { return n >= 9; } },
-      { key: '8.0–8.9', test: function (n) { return n >= 8 && n < 9; } },
-      { key: '7.0–7.9', test: function (n) { return n >= 7 && n < 8; } },
-      { key: '6.0–6.9', test: function (n) { return n >= 6 && n < 7; } },
-      { key: 'Under 6', test: function (n) { return n > 0 && n < 6; } },
-    ];
-    var ratingItems = scoreBands.map(function (b) {
-      return { key: b.key, count: imdbScores.filter(b.test).length };
-    });
-
-    // Spotlight extremes for the highlights row.
+    // Highlights
     var topRated = pickExtreme(discs, discImdbScore);
     var longest = pickExtreme(discs, function (d) { return parseRuntimeMinutes(d.runtime); });
     var newest = pickExtreme(discs, discYear);
     var oldest = pickExtreme(discs, function (d) { var y = discYear(d); return y > 0 ? (10000 - y) : 0; });
+    var minYear = oldest ? discYear(oldest.disc) : 0;
+    var maxYear = newest ? discYear(newest.disc) : 0;
+    var yearSpan = (minYear && maxYear) ? (maxYear - minYear + 1) : 0;
 
-    // Decades
-    var decadeItems = tallyTop(discs.map(function (d) {
+    // Decades — pad missing decades with zero counts so the timeline reads
+    // continuously rather than skipping eras.
+    var decadeCounts = {};
+    discs.forEach(function (d) {
       var y = parseInt(d.year, 10);
-      if (!y) return '';
-      return (Math.floor(y / 10) * 10) + 's';
-    }));
-    decadeItems.sort(function (a, b) { return a.key.localeCompare(b.key); });
+      if (!y) return;
+      var k = Math.floor(y / 10) * 10;
+      decadeCounts[k] = (decadeCounts[k] || 0) + 1;
+    });
+    var decadeKeys = Object.keys(decadeCounts).map(Number);
+    var decades = [];
+    if (decadeKeys.length) {
+      var minD = Math.min.apply(null, decadeKeys);
+      var maxD = Math.max.apply(null, decadeKeys);
+      for (var dec = minD; dec <= maxD; dec += 10) {
+        decades.push({ decade: dec, label: "'" + String(dec % 100).padStart(2, '0') + 's', count: decadeCounts[dec] || 0 });
+      }
+    }
 
-    // Genres (split comma-separated)
+    // Genres
     var allGenres = [];
     discs.forEach(function (d) {
       (d.genre || '').split(',').forEach(function (g) {
@@ -513,87 +580,492 @@
     });
     var genreItems = tallyTop(allGenres, 10);
 
-    // MPAA ratings
-    var ratedItems = tallyTop(discs.map(function (d) { return (d.rated || '').trim(); }));
+    // MPAA ratings — top 3 explicit values, rest folded into "Other".
+    var ratedAll = tallyTop(discs.map(function (d) { return (d.rated || '').trim(); }));
+    var ratedTop = ratedAll.slice(0, 3);
+    var otherCount = ratedAll.slice(3).reduce(function (s, r) { return s + r.count; }, 0);
 
     // Top directors / studios
     var directorItems = tallyTop(discs.map(function (d) { return (d.director || '').trim(); })
-      .filter(function (s) { return s && s !== 'N/A'; }), 10);
-    var studioItems = tallyTop(discs.map(function (d) { return (d.studio || '').trim(); }), 10);
+      .filter(function (s) { return s && s !== 'N/A'; }), 6);
+    var studioItems = tallyTop(discs.map(function (d) { return (d.studio || '').trim(); }), 8);
 
-    // Format colors for the by-format bar. Counts sum to more than total
-    // when titles are held in multiple formats.
-    var formatItems = [
-      { key: 'Blu-ray', count: bluray },
-      { key: '4K UHD', count: uhd },
-      { key: 'Apple TV', count: appletv },
-    ].filter(function (it) { return it.count > 0; })
-     .sort(function (a, b) { return b.count - a.count; });
-    var FORMAT_COLOR = { 'Blu-ray': '#4d8df0', '4K UHD': '#e7b34c', 'Apple TV': '#a78bfa' };
-    var FORMAT_KEY = { 'Blu-ray': 'bluray', '4K UHD': 'uhd', 'Apple TV': 'appletv' };
-    var formatColor = function (k) { return FORMAT_COLOR[k] || '#e7b34c'; };
+    return [
+      statsIntroHTML(total, yearSpan),
+      statsHeroHTML(total, bluray, uhd, appletv, formatSum, totalRuntime, runtimeDays, avgImdbN, imdbScores.length, yearSpan, oldest, newest, minYear, maxYear),
+      statsRowAHTML(decades, formatSum, bluray, uhd, appletv),
+      statsRowBHTML(imdbScores, avgImdbN, ripped, rippableTotal, notRipped, rippedPct, ratedTop, otherCount),
+      statsTreemapHTML(genreItems),
+      statsHighlightsHTML(topRated, longest, newest, oldest),
+      statsRowEHTML(directorItems, studioItems)
+    ].join('');
+  }
 
-    // Drill descriptors. A label maps to one filter dimension; the
-    // 'stats-drill' action sets it, clears the others, and switches to the
-    // wall. Genres/directors/studios drill via the search box (genre is part
-    // of the searchable text); formats and Plex status drill via their filters.
-    var drillFmt = function (k) { return FORMAT_KEY[k] ? { fmt: FORMAT_KEY[k] } : null; };
-    var drillPlex = function (k) { return { plex: k === 'Ripped' ? 'plex' : 'not-plex' }; };
-    var drillQuery = function (k) { return { q: k }; };
+  // Intro: eyebrow + section H1 + supporting blurb + sync chip.
+  function statsIntroHTML(total, yearSpan) {
+    var now = new Date();
+    var MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    var stamp = 'SYNCED · ' + MONTHS[now.getMonth()] + ' ' + now.getDate() + ' ' + now.getFullYear();
+    var blurb = fmtThousands(total) + ' titles' +
+      (yearSpan ? ' spanning ' + yearSpan + ' year' + (yearSpan === 1 ? '' : 's') + ' of cinema' : '') +
+      ' — broken down by format, era, rating and the directors who keep showing up.';
+    return '<section class="stats-v2">' +
+      '<div class="sv2-intro">' +
+        '<div class="sv2-intro-left">' +
+          '<div class="sv2-eyebrow">LIBRARY STATS</div>' +
+          '<h1 class="sv2-h1">The shape of your<br>collection.</h1>' +
+          '<p class="sv2-blurb">' + escapeHtml(blurb) + '</p>' +
+        '</div>' +
+        '<div class="sv2-sync">' + stamp + '</div>' +
+      '</div>';
+  }
 
-    var bigStat = function (num, cap, sub) {
-      return '<div class="big-stat"><div class="big-num">' + num + '</div>' +
-        '<div class="big-cap">' + cap + '</div>' +
-        (sub ? '<div class="big-sub">' + sub + '</div>' : '') + '</div>';
-    };
+  // The 4-tile "fun-fact" hero strip with per-tile micro-visuals.
+  function statsHeroHTML(total, bluray, uhd, appletv, formatSum, totalRuntime, runtimeDays, avgImdbN, scoredCount, yearSpan, oldest, newest, minYear, maxYear) {
+    var atvPct = formatSum ? (appletv / formatSum * 100) : 0;
+    var bdPct = formatSum ? (bluray / formatSum * 100) : 0;
+    var uhdPct = formatSum ? (uhd / formatSum * 100) : 0;
+    var ratingFrac = avgImdbN > 0 ? Math.round(avgImdbN * 10) : 0; // out of 100
+    var oldTitle = oldest ? oldest.disc.title : '—';
+    var newTitle = newest ? newest.disc.title : '—';
+    var avgDisplay = scoredCount ? avgImdbN.toFixed(1) : '—';
 
-    var panel = function (title, body) {
-      return '<section class="stats-panel">' +
-        '<h3 class="stats-panel-title">' + title + '</h3>' + body + '</section>';
-    };
+    function tile(eyebrow, num, unit, sub, micro) {
+      return '<div class="sv2-tile">' +
+        '<div class="sv2-tile-eb">' + eyebrow + '</div>' +
+        '<div class="sv2-tile-num"><span class="sv2-tile-n">' + num + '</span>' +
+          (unit ? '<span class="sv2-tile-u">' + unit + '</span>' : '') + '</div>' +
+        '<div class="sv2-tile-sub">' + escapeHtml(sub) + '</div>' +
+        '<div class="sv2-tile-micro">' + micro + '</div>' +
+      '</div>';
+    }
 
-    var spotlights =
-      spotlightCard('★ Top rated', topRated, function (v) { return v.toFixed(1) + ' IMDb'; }) +
-      spotlightCard('⏱ Longest', longest, function (v) { return v + ' min'; }) +
-      spotlightCard('✦ Newest', newest, function (v, d) { return escapeHtml(d.year); }) +
-      spotlightCard('⌛ Oldest', oldest, function (v, d) { return escapeHtml(d.year); });
+    // Format split bar: 3 segments, widths proportional to share.
+    var splitBar = '<div class="sv2-splitbar">' +
+      '<div style="width:' + atvPct.toFixed(2) + '%;background:' + STATS_FMT_COLOR.appletv + '"></div>' +
+      '<div style="width:' + bdPct.toFixed(2) + '%;background:' + STATS_FMT_COLOR.bluray + '"></div>' +
+      '<div style="width:' + uhdPct.toFixed(2) + '%;background:' + STATS_FMT_COLOR.uhd + '"></div>' +
+    '</div>';
 
-    return '<div class="stats-wrap">' +
-      '<div class="big-stats">' +
-        bigStat(total, 'Total discs', '') +
-        bigStat(ripped + ' / ' + rippableTotal, 'Ripped to Plex', rippedPct + '% of rippable titles') +
-        bigStat(runtimeDays + 'd', 'Total runtime', totalRuntime + ' min across ' + imdbScores.length + ' rated titles') +
-        bigStat(avgImdb, 'Avg IMDb rating', imdbScores.length + ' titles scored') +
-      '</div>' +
-      (spotlights ? '<section class="stats-panel spotlight-panel">' +
-        '<h3 class="stats-panel-title">Collection highlights</h3>' +
-        '<div class="spotlight-row">' + spotlights + '</div>' +
-      '</section>' : '') +
-      '<div class="stats-grid">' +
-        panel('By format', bars(formatItems, formatColor, drillFmt)) +
-        panel('Plex status', bars([
-          { key: 'Ripped', count: ripped },
-          { key: 'Not ripped', count: notRipped },
-        ], function (k) { return k === 'Ripped' ? '#e7b34c' : '#4a4843'; }, drillPlex)) +
-        panel('IMDb ratings', bars(ratingItems, function () { return '#e7b34c'; })) +
-        panel('By decade', bars(decadeItems)) +
-        panel('Top genres', bars(genreItems, null, drillQuery)) +
-        panel('MPAA rating', bars(ratedItems)) +
-        panel('Top directors', bars(directorItems, null, drillQuery)) +
-        panel('Top studios', bars(studioItems, null, drillQuery)) +
-      '</div>' +
+    // Tiny equalizer of accent bars — purely decorative, fixed heights.
+    var EQ_HEIGHTS = [9, 15, 8, 19, 12, 17, 9, 14, 11];
+    var EQ_OPACITY = [0.55, 0.7, 0.5, 1, 0.65, 0.85, 0.5, 0.7, 0.6];
+    var eq = '<div class="sv2-eq">' + EQ_HEIGHTS.map(function (h, i) {
+      return '<span style="height:' + h + 'px;opacity:' + EQ_OPACITY[i] + '"></span>';
+    }).join('') + '</div>';
+
+    var meter = '<div class="sv2-meter"><div style="width:' + ratingFrac + '%;background:' + STATS_ACCENT_HMETER + '"></div></div>';
+
+    var timeline = '<div class="sv2-timeline">' +
+      '<div class="sv2-timeline-line"></div>' +
+      '<div class="sv2-timeline-dot"></div>' +
+      '<div class="sv2-timeline-spacer"></div>' +
+      '<div class="sv2-timeline-dot"></div>' +
+    '</div>' +
+    '<div class="sv2-timeline-labels"><span>' + (minYear || '—') + '</span><span>' + (maxYear || '—') + '</span></div>';
+
+    var titleSub = fmtThousands(formatSum) + ' disc' + (formatSum === 1 ? '' : 's') + ' & digital files';
+    var runtimeSub = fmtThousands(totalRuntime) + ' minutes, back to back';
+    var avgSub = scoredCount + ' rated title' + (scoredCount === 1 ? '' : 's');
+    var spanSub = (oldTitle !== '—' && newTitle !== '—') ? (oldTitle + ' → ' + newTitle) : 'Add dated titles to see your span';
+
+    return '<div class="sv2-hero">' +
+      tile('IN THE LIBRARY', fmtThousands(total), 'title' + (total === 1 ? '' : 's'), titleSub, splitBar) +
+      tile('TOTAL RUNTIME', runtimeDays, 'day' + (runtimeDays === '1.0' ? '' : 's'), runtimeSub, eq) +
+      tile('AVERAGE RATING', avgDisplay, '/ 10 IMDb', 'across ' + avgSub, meter) +
+      tile('YEARS OF CINEMA', (yearSpan || '—'), 'years', spanSub, timeline) +
     '</div>';
   }
 
-  // Grow the stats bars in from zero once the view is mounted. renderContent()
-  // injects them at width:0 with the target on data-w; a rAF flip lets the
-  // existing `.bar-fill` width transition animate them up.
+  // Row A: smooth area + line of titles by decade (left) and format donut (right).
+  function statsRowAHTML(decades, formatSum, bluray, uhd, appletv) {
+    var card = function (body) {
+      return '<div class="sv2-card">' + body + '</div>';
+    };
+
+    // ---- Area chart geometry ----
+    var area = '';
+    var insightArea = '';
+    var labels = '';
+    if (decades.length >= 2) {
+      var x0 = 14, x1 = 746, y0 = 22, y1 = 196;
+      var maxD = decades.reduce(function (m, d) { return d.count > m ? d.count : m; }, 0) || 1;
+      var pts = decades.map(function (d, i) {
+        return {
+          x: x0 + (x1 - x0) * (i / (decades.length - 1)),
+          y: y1 - (d.count / maxD) * (y1 - y0)
+        };
+      });
+      var lineD = smoothPath(pts);
+      var last = pts[pts.length - 1];
+      var areaD = lineD + ' L ' + last.x.toFixed(2) + ' ' + y1 + ' L ' + pts[0].x.toFixed(2) + ' ' + y1 + ' Z';
+      var peakI = 0;
+      decades.forEach(function (d, i) { if (d.count > decades[peakI].count) peakI = i; });
+      var peak = pts[peakI];
+      var peakDec = decades[peakI];
+      var postMillenniumCount = decades.reduce(function (s, d) {
+        return s + (d.decade >= 2000 ? d.count : 0);
+      }, 0);
+      var totalDated = decades.reduce(function (s, d) { return s + d.count; }, 0);
+      var postPct = totalDated ? Math.round(postMillenniumCount / totalDated * 100) : 0;
+      area =
+        '<svg class="sv2-area-svg" viewBox="0 0 760 230" preserveAspectRatio="none">' +
+          '<defs><linearGradient id="sv2AreaGrad" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0%" stop-color="' + STATS_ACCENT.solid + '" stop-opacity="0.42"></stop>' +
+            '<stop offset="60%" stop-color="' + STATS_ACCENT.solid + '" stop-opacity="0.10"></stop>' +
+            '<stop offset="100%" stop-color="' + STATS_ACCENT.solid + '" stop-opacity="0"></stop>' +
+          '</linearGradient></defs>' +
+          '<line x1="14" y1="196" x2="746" y2="196" stroke="rgba(255,255,255,0.08)" stroke-width="1"></line>' +
+          '<path d="' + areaD + '" fill="url(#sv2AreaGrad)"></path>' +
+          '<path d="' + lineD + '" fill="none" stroke="' + STATS_ACCENT.solid + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>' +
+          '<line x1="' + peak.x.toFixed(2) + '" y1="' + peak.y.toFixed(2) + '" x2="' + peak.x.toFixed(2) + '" y2="196" stroke="' + STATS_ACCENT.solid + '" stroke-width="1" stroke-dasharray="3 3" stroke-opacity="0.5"></line>' +
+          '<circle cx="' + peak.x.toFixed(2) + '" cy="' + peak.y.toFixed(2) + '" r="5.5" fill="' + STATS_ACCENT.bright + '" stroke="#0a0a0d" stroke-width="2.5"></circle>' +
+        '</svg>';
+      labels = '<div class="sv2-area-labels">' + decades.map(function (d, i) {
+        var cls = i === peakI ? ' class="peak"' : '';
+        return '<span' + cls + '>' + d.label + '</span>';
+      }).join('') + '</div>';
+      insightArea = '<div class="sv2-insight">' +
+        '<span class="sv2-dot"></span>' +
+        '<span>Peak decade is the <strong>' + peakDec.decade + 's with ' + peakDec.count + ' title' + (peakDec.count === 1 ? '' : 's') + '</strong>' +
+        (postPct ? ' — ' + postPct + '% of dated titles landed after 2000.' : '.') + '</span>' +
+      '</div>';
+    } else {
+      area = '<div class="sv2-empty">Add a few titles to see your timeline.</div>';
+    }
+    var leftCard = card(
+      '<div class="sv2-card-head">' +
+        '<span class="sv2-card-eb">COLLECTION OVER TIME</span>' +
+        '<span class="sv2-card-eb-r">TITLES BY DECADE</span>' +
+      '</div>' +
+      area + labels + insightArea
+    );
+
+    // ---- Donut ----
+    var fmts = [
+      { key: 'appletv', name: 'Apple TV', count: appletv, color: STATS_FMT_COLOR.appletv },
+      { key: 'bluray', name: 'Blu-ray', count: bluray, color: STATS_FMT_COLOR.bluray },
+      { key: 'uhd', name: '4K UHD', count: uhd, color: STATS_FMT_COLOR.uhd }
+    ].filter(function (f) { return f.count > 0; });
+    var R = 70, gap = 10, CIRC = 2 * Math.PI * R;
+    var cum = 0;
+    var donutSegs = '';
+    var legend = '';
+    var biggest = null;
+    fmts.forEach(function (f) {
+      if (!biggest || f.count > biggest.count) biggest = f;
+      var frac = formatSum ? f.count / formatSum : 0;
+      var len = Math.max(0, frac * CIRC - gap);
+      donutSegs +=
+        '<g data-action="stats-drill" data-fmt="' + f.key + '" class="sv2-donut-seg" title="Show ' + escapeHtml(f.name) + ' titles">' +
+          '<circle cx="90" cy="90" r="' + R + '" fill="none" stroke="' + f.color + '" stroke-width="25"' +
+            ' stroke-dasharray="' + len.toFixed(2) + ' ' + (CIRC - len).toFixed(2) + '"' +
+            ' stroke-dashoffset="' + (-cum * CIRC).toFixed(2) + '"></circle>' +
+        '</g>';
+      cum += frac;
+      var pct = formatSum ? Math.round(frac * 100) : 0;
+      legend +=
+        '<div class="sv2-legend-row" data-action="stats-drill" data-fmt="' + f.key + '" title="Show ' + escapeHtml(f.name) + ' titles">' +
+          '<span class="sv2-legend-chip" style="background:' + f.color + '"></span>' +
+          '<span class="sv2-legend-name">' + escapeHtml(f.name) + '</span>' +
+          '<span class="sv2-legend-pct">' + pct + '%</span>' +
+          '<span class="sv2-legend-count">' + fmtThousands(f.count) + '</span>' +
+        '</div>';
+    });
+    var biggestInsight = biggest
+      ? '<div class="sv2-insight"><span class="sv2-dot" style="background:' + biggest.color + '"></span>' +
+        '<span><strong>' + escapeHtml(biggest.name) + '</strong> is ' + Math.round(biggest.count / formatSum * 100) + '% of all format chips.</span></div>'
+      : '';
+    var rightCard = card(
+      '<span class="sv2-card-eb">BY FORMAT</span>' +
+      '<div class="sv2-donut-wrap">' +
+        '<div class="sv2-donut">' +
+          '<svg width="180" height="180" viewBox="0 0 180 180">' +
+            '<g transform="rotate(-90 90 90)">' +
+              '<circle cx="90" cy="90" r="' + R + '" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="25"></circle>' +
+              donutSegs +
+            '</g>' +
+          '</svg>' +
+          '<div class="sv2-donut-center">' +
+            '<span class="sv2-donut-n">' + fmtThousands(formatSum) + '</span>' +
+            '<span class="sv2-donut-l">DISCS &amp; FILES</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sv2-legend">' + legend + '</div>' +
+      biggestInsight
+    );
+
+    return '<div class="sv2-row sv2-row-a">' + leftCard + rightCard + '</div>';
+  }
+
+  // Row B: IMDb histogram (left) + a vertical stack of Plex ring + rating mix (right).
+  function statsRowBHTML(imdbScores, avgImdbN, ripped, rippableTotal, notRipped, rippedPct, ratedTop, otherCount) {
+    // Histogram buckets (low → high so the AVG marker reads left → right).
+    var buckets = [
+      { label: '<6', test: function (n) { return n < 6; } },
+      { label: '6',  test: function (n) { return n >= 6 && n < 7; } },
+      { label: '7',  test: function (n) { return n >= 7 && n < 8; } },
+      { label: '8',  test: function (n) { return n >= 8 && n < 9; } },
+      { label: '9+', test: function (n) { return n >= 9; } }
+    ];
+    var bucketCounts = buckets.map(function (b) { return imdbScores.filter(b.test).length; });
+    var maxBucket = bucketCounts.reduce(function (m, c) { return c > m ? c : m; }, 0) || 1;
+    var sweetIdx = 2;
+    var sweetCount = bucketCounts[sweetIdx];
+    var avgPct = imdbScores.length ? ratingPositionPct(avgImdbN) : 0;
+    var histoBars = buckets.map(function (b, i) {
+      var c = bucketCounts[i];
+      var hPct = Math.max(0, c / maxBucket * 100);
+      return '<div class="sv2-histo-col">' +
+        '<span class="sv2-histo-n">' + c + '</span>' +
+        '<div class="sv2-histo-bar" data-h="' + hPct.toFixed(2) + '" style="height:0;background:' + STATS_ACCENT_VMETER + '"></div>' +
+      '</div>';
+    }).join('');
+    var histoLabels = buckets.map(function (b) {
+      return '<span>' + b.label + '</span>';
+    }).join('');
+    var avgMarker = imdbScores.length
+      ? '<div class="sv2-histo-avg" style="left:' + avgPct.toFixed(2) + '%"></div>' +
+        '<div class="sv2-histo-avg-pill" style="left:' + avgPct.toFixed(2) + '%">AVG ' + avgImdbN.toFixed(1) + '</div>'
+      : '';
+    var histoCard =
+      '<div class="sv2-card sv2-histo-card">' +
+        '<div class="sv2-card-head">' +
+          '<span class="sv2-card-eb">IMDB RATING SPREAD</span>' +
+          '<span class="sv2-card-eb-r">' + imdbScores.length + ' SCORED</span>' +
+        '</div>' +
+        '<div class="sv2-histo">' +
+          '<div class="sv2-histo-bars">' + histoBars + '</div>' +
+          avgMarker +
+        '</div>' +
+        '<div class="sv2-histo-labels">' + histoLabels + '</div>' +
+        (sweetCount
+          ? '<div class="sv2-insight"><span class="sv2-dot"></span><span><strong>' + sweetCount + ' title' + (sweetCount === 1 ? '' : 's') +
+            '</strong> sit in the 7.0–7.9 sweet spot.</span></div>'
+          : '') +
+      '</div>';
+
+    // Plex ring
+    var ringR = 64, ringC = 2 * Math.PI * ringR;
+    var plexFrac = rippableTotal ? ripped / rippableTotal : 0;
+    var plexDash = (plexFrac * ringC).toFixed(2) + ' ' + ringC.toFixed(2);
+    var plexCard =
+      '<div class="sv2-card sv2-plex-card" data-action="stats-drill" data-plex="plex" title="Show ripped titles">' +
+        '<div class="sv2-plex-ring">' +
+          '<svg width="128" height="128" viewBox="0 0 160 160">' +
+            '<g transform="rotate(-90 80 80)">' +
+              '<circle cx="80" cy="80" r="' + ringR + '" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="20"></circle>' +
+              '<circle cx="80" cy="80" r="' + ringR + '" fill="none" stroke="' + STATS_ACCENT.solid + '" stroke-width="20" stroke-linecap="round" stroke-dasharray="' + plexDash + '"></circle>' +
+            '</g>' +
+          '</svg>' +
+          '<div class="sv2-plex-center">' +
+            '<span class="sv2-plex-n">' + rippedPct + '%</span>' +
+            '<span class="sv2-plex-l">RIPPED</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sv2-plex-body">' +
+          '<span class="sv2-card-eb">PLEX ARCHIVE</span>' +
+          '<div class="sv2-plex-frac">' + fmtThousands(ripped) + ' <span>/ ' + fmtThousands(rippableTotal) + '</span></div>' +
+          '<div class="sv2-plex-sub">rippable discs archived</div>' +
+          '<div class="sv2-plex-rem">' + fmtThousands(notRipped) + ' still on the to-rip pile</div>' +
+        '</div>' +
+      '</div>';
+
+    // Rating mix — top 3 explicit MPAA values + Other.
+    var mixSegs = ratedTop.slice();
+    if (otherCount > 0) mixSegs.push({ key: 'Other', count: otherCount });
+    var mixTotal = mixSegs.reduce(function (s, m) { return s + m.count; }, 0);
+    var MIX_PALETTE = [STATS_ACCENT.solid, STATS_ACCENT.deep, '#6e6244', '#34322b'];
+    var MIX_FG = ['#1a1206', '#fbf6ea', '#fbf6ea', '#c8c4ba'];
+    var stack = '';
+    var chips = '';
+    mixSegs.forEach(function (m, i) {
+      var w = mixTotal ? (m.count / mixTotal * 100) : 0;
+      var label = m.key || '—';
+      var safeLabel = escapeHtml(label);
+      var drill = (label && label !== 'Other' && label !== '—')
+        ? ' data-action="stats-drill" data-q="' + safeLabel + '"'
+        : '';
+      stack +=
+        '<div class="sv2-mix-seg"' + drill + ' style="width:' + w.toFixed(2) + '%;background:' + MIX_PALETTE[i] + '" title="' + safeLabel + ' · ' + m.count + '">' +
+          '<span style="color:' + MIX_FG[i] + '">' + safeLabel + '</span>' +
+        '</div>';
+      chips +=
+        '<div class="sv2-mix-chip"' + drill + '>' +
+          '<span class="sv2-mix-dot" style="background:' + MIX_PALETTE[i] + '"></span>' +
+          '<span class="sv2-mix-name">' + safeLabel + '</span>' +
+          '<span class="sv2-mix-count">' + m.count + '</span>' +
+        '</div>';
+    });
+    var mixCard =
+      '<div class="sv2-card sv2-mix-card">' +
+        '<span class="sv2-card-eb">RATING MIX</span>' +
+        (mixSegs.length
+          ? '<div class="sv2-mix-stack">' + stack + '</div>' +
+            '<div class="sv2-mix-chips">' + chips + '</div>'
+          : '<div class="sv2-empty">No MPAA ratings on file yet.</div>') +
+      '</div>';
+
+    return '<div class="sv2-row sv2-row-b">' +
+      histoCard +
+      '<div class="sv2-rstack">' + plexCard + mixCard + '</div>' +
+    '</div>';
+  }
+
+  // Genre treemap (squarified, % horizontal × px vertical against a 1264×300 box).
+  function statsTreemapHTML(genreItems) {
+    if (!genreItems.length) {
+      return '<div class="sv2-card sv2-treemap-card">' +
+        '<span class="sv2-card-eb">GENRE LANDSCAPE</span>' +
+        '<div class="sv2-empty">Add genres to titles to see the landscape.</div>' +
+      '</div>';
+    }
+    var TW = 1264, TH = 300;
+    var items = genreItems.map(function (g) { return { name: g.key, value: g.count }; });
+    var tiles = squarify(items, 0, 0, TW, TH);
+    var sorted = tiles.slice().sort(function (a, b) { return b.value - a.value; });
+    var n = sorted.length;
+    var byName = {};
+    sorted.forEach(function (t, i) {
+      var L = n > 1 ? (0.80 - (i / (n - 1)) * 0.40) : 0.80;
+      byName[t.name] = {
+        bg: 'oklch(' + L.toFixed(3) + ' 0.105 ' + STATS_ACCENT.hue + ')',
+        fg: L > 0.60 ? '#1c1606' : '#f6efdd',
+        sub: L > 0.60 ? 'rgba(28,22,6,0.6)' : 'rgba(246,239,221,0.6)'
+      };
+    });
+    var top3 = sorted.slice(0, 3).map(function (t) { return t.name; });
+    var top3Sum = sorted.slice(0, 3).reduce(function (s, t) { return s + t.value; }, 0);
+    var totalSum = sorted.reduce(function (s, t) { return s + t.value; }, 0);
+    var top3Pct = totalSum ? Math.round(top3Sum / totalSum * 100) : 0;
+    var tilesHTML = tiles.map(function (t) {
+      var meta = byName[t.name];
+      var leftPct = (t.x / TW * 100);
+      var widthPct = (t.w / TW * 100);
+      var showLabel = t.w > 56 && t.h > 34;
+      var style =
+        'left:' + leftPct.toFixed(3) + '%;' +
+        'top:' + t.y.toFixed(2) + 'px;' +
+        'width:calc(' + widthPct.toFixed(3) + '% - 4px);' +
+        'height:' + (t.h - 4).toFixed(2) + 'px;' +
+        'background:' + meta.bg + ';';
+      return '<div class="sv2-tm-tile" data-action="stats-drill" data-q="' + escapeHtml(t.name) + '" style="' + style + '" title="' + escapeHtml(t.name) + ' · ' + t.value + '">' +
+        (showLabel
+          ? '<div class="sv2-tm-name" style="color:' + meta.fg + '">' + escapeHtml(t.name) + '</div>' +
+            '<div class="sv2-tm-count" style="color:' + meta.sub + '">' + t.value + '</div>'
+          : '') +
+      '</div>';
+    }).join('');
+    var topNames = top3.length === 3
+      ? top3[0] + ', ' + top3[1] + ' & ' + top3[2]
+      : top3.join(', ');
+    return '<div class="sv2-card sv2-treemap-card">' +
+      '<div class="sv2-card-head">' +
+        '<span class="sv2-card-eb">GENRE LANDSCAPE</span>' +
+        '<span class="sv2-card-eb-r">SIZED BY TITLE COUNT</span>' +
+      '</div>' +
+      '<div class="sv2-treemap">' + tilesHTML + '</div>' +
+      (top3.length ? '<div class="sv2-insight"><span class="sv2-dot"></span><span><strong>' + escapeHtml(topNames) + '</strong> dominate — together ' + top3Pct + '% of every tagged title.</span></div>' : '') +
+    '</div>';
+  }
+
+  // Highlights — 4 poster-led cards. Reuses the existing pickExtreme picks.
+  function statsHighlightsHTML(topRated, longest, newest, oldest) {
+    function card(kicker, pick, value) {
+      if (!pick) return '';
+      var d = pick.disc;
+      return '<div class="sv2-hl-card" data-action="open-detail" data-id="' + d.id + '" title="' + escapeHtml(d.title) + '">' +
+        '<div class="sv2-hl-poster">' + posterOrHouse(d, 'card') + '</div>' +
+        '<div class="sv2-hl-info">' +
+          '<div class="sv2-hl-tag"><span></span>' + kicker + '</div>' +
+          '<div class="sv2-hl-title">' + escapeHtml(d.title) + '</div>' +
+          '<div class="sv2-hl-value">' + value + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+    var cards =
+      card('TOP RATED', topRated, topRated ? topRated.value.toFixed(1) + ' IMDb' : '') +
+      card('LONGEST', longest, longest ? longest.value + ' min' : '') +
+      card('NEWEST', newest, newest ? escapeHtml(newest.disc.year) : '') +
+      card('OLDEST', oldest, oldest ? escapeHtml(oldest.disc.year) : '');
+    if (!cards) return '';
+    return '<div class="sv2-hl">' +
+      '<span class="sv2-card-eb">COLLECTION HIGHLIGHTS</span>' +
+      '<div class="sv2-hl-grid">' + cards + '</div>' +
+    '</div>';
+  }
+
+  // Row E: directors leaderboard + studios tag cloud.
+  function statsRowEHTML(directorItems, studioItems) {
+    var directorsBody;
+    if (directorItems.length) {
+      var dirMax = directorItems[0].count;
+      var rows = directorItems.map(function (d, i) {
+        var rank = String(i + 1).padStart(2, '0');
+        var pct = Math.round(d.count / dirMax * 100);
+        return '<div class="sv2-dir-row" data-action="stats-drill" data-q="' + escapeHtml(d.key) + '" title="Show ' + escapeHtml(d.key) + ' titles">' +
+          '<span class="sv2-dir-rank">' + rank + '</span>' +
+          '<span class="sv2-dir-name">' + escapeHtml(d.key) + '</span>' +
+          '<span class="sv2-dir-track"><span class="sv2-dir-fill" data-w="' + pct + '" style="width:0;background:' + STATS_ACCENT_HMETER + '"></span></span>' +
+          '<span class="sv2-dir-count">' + d.count + '</span>' +
+        '</div>';
+      }).join('');
+      directorsBody = '<div class="sv2-dir-list">' + rows + '</div>';
+    } else {
+      directorsBody = '<div class="sv2-empty">No director data yet.</div>';
+    }
+    var dirCard = '<div class="sv2-card sv2-dir-card">' +
+      '<span class="sv2-card-eb">DIRECTORS ON HEAVY ROTATION</span>' +
+      directorsBody +
+    '</div>';
+
+    var studiosBody;
+    if (studioItems.length) {
+      var studMax = studioItems[0].count;
+      var pills = studioItems.map(function (s) {
+        var t = studMax ? s.count / studMax : 0;
+        var fs = (12.5 + t * 8).toFixed(2);
+        var py = (7 + t * 3).toFixed(2);
+        var px = (13 + t * 4).toFixed(2);
+        var bgL = (0.17 + t * 0.13).toFixed(3);
+        var bgC = (0.02 + t * 0.06).toFixed(3);
+        var color = t > 0.45 ? STATS_ACCENT.bright : '#b7b3aa';
+        var borderPct = Math.round(10 + t * 26);
+        var style =
+          'font-size:' + fs + 'px;' +
+          'padding:' + py + 'px ' + px + 'px;' +
+          'background:oklch(' + bgL + ' ' + bgC + ' ' + STATS_ACCENT.hue + ');' +
+          'color:' + color + ';' +
+          'border:1px solid color-mix(in srgb,' + STATS_ACCENT.solid + ' ' + borderPct + '%, transparent);';
+        return '<span class="sv2-stud" data-action="stats-drill" data-q="' + escapeHtml(s.key) + '" style="' + style + '" title="Show ' + escapeHtml(s.key) + ' titles">' +
+          escapeHtml(s.key) + ' · ' + s.count +
+        '</span>';
+      }).join('');
+      studiosBody = '<div class="sv2-stud-cloud">' + pills + '</div>' +
+        '<div class="sv2-insight"><span class="sv2-dot"></span><span><strong>' + escapeHtml(studioItems[0].key) + '</strong> is your most-stocked studio.</span></div>';
+    } else {
+      studiosBody = '<div class="sv2-empty">No studio data yet.</div>';
+    }
+    var studCard = '<div class="sv2-card sv2-stud-card">' +
+      '<span class="sv2-card-eb">STUDIO FOOTPRINT</span>' +
+      studiosBody +
+    '</div>';
+
+    return '<div class="sv2-row sv2-row-e">' + dirCard + studCard + '</div></section>';
+  }
+
+  // Grow the stats charts in after the view mounts. Histogram bars start at
+  // height:0 and the leaderboard fills at width:0 — a double-rAF flip lets
+  // the CSS transitions animate them up to their data-h / data-w targets.
   function animateStats() {
-    var fills = document.querySelectorAll('#content .bar-fill[data-w]');
-    if (!fills.length) return;
+    var widthEls = document.querySelectorAll('#content .sv2-dir-fill[data-w]');
+    var heightEls = document.querySelectorAll('#content .sv2-histo-bar[data-h]');
+    if (!widthEls.length && !heightEls.length) return;
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        fills.forEach(function (el) { el.style.width = el.getAttribute('data-w') + '%'; });
+        widthEls.forEach(function (el) { el.style.width = el.getAttribute('data-w') + '%'; });
+        heightEls.forEach(function (el) { el.style.height = el.getAttribute('data-h') + '%'; });
       });
     });
   }

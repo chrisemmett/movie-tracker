@@ -420,33 +420,68 @@ The whole frontend is one IIFE with no framework. Key pieces:
   the add form and the multi-add picker. There is no server-side persistence —
   these settings live only in the browser. Add future preferences as new keys
   on `DEFAULT_SETTINGS`.
-- **Stats view**: aggregates totals, runtime, average IMDb rating, top
-  genres / directors / studios / decades — all computed in-browser. Layout,
-  top to bottom: four headline `big-stat` tiles, a **Collection highlights**
-  spotlight row, then the `stats-grid` of bar panels. The
-  average IMDb rating scores each disc via `discImdbScore()`, which prefers
-  the dedicated `imdbRating` field and falls back to the IMDb entry in the
-  `ratings` array.
-  - **Collection highlights** (`spotlightCard()`): up to four poster-led
-    cards — top rated, longest, newest, oldest — chosen by `pickExtreme()`
-    (the disc maximising a per-card score; cards with no qualifying disc are
-    omitted, and the whole panel disappears if none qualify). Each card is a
-    `data-action="open-detail"` shortcut into that disc's detail modal.
-  - **IMDb ratings** panel: a fixed-band histogram (`9.0+`, `8.0–8.9`, …,
-    `Under 6`) of `discImdbScore()` values. Display-only — rating isn't part
-    of the searchable text, so it isn't drillable.
-  - **Drill-down bars**: `bars()` takes an optional `drillFor(key)` returning
-    a single-dimension descriptor (`{ q }` search text, `{ fmt }`, or
-    `{ plex }`). Drillable rows carry `data-action="stats-drill"`; the
-    dispatcher sets that one filter, resets the others, and switches to the
-    wall. By-format drills the format filter, Plex-status drills the Plex
-    filter, and genres / directors / studios drill the search box (genre is
-    now part of `filteredSorted()`'s searchable text so a genre query
-    matches). By-decade and MPAA-rating bars stay display-only.
-  - **Entrance animation**: bar fills render at `width:0` with the target on
-    `data-w`; `animateStats()` (called by `renderContent()` after mounting
-    the stats view) flips them to the real width on a double-rAF so the
-    `.bar-fill` width transition grows them in. The two OMDB sources don't have equal coverage —
+- **Stats view**: a multi-section dashboard rendered into a single
+  `<section class="stats-v2">` by `statsHTML()` and a per-section helper for
+  each row (`statsIntroHTML`, `statsHeroHTML`, `statsRowAHTML`,
+  `statsRowBHTML`, `statsTreemapHTML`, `statsHighlightsHTML`,
+  `statsRowEHTML`). All data is aggregated in-browser; no server endpoint
+  feeds it. The average IMDb rating scores each disc via `discImdbScore()`,
+  which prefers the dedicated `imdbRating` field and falls back to the IMDb
+  entry in the `ratings` array.
+  - **Intro band**: mono eyebrow, an H1 hero title, a one-sentence blurb
+    derived from the live count + year span, and a `SYNCED · MON D YYYY`
+    chip (today's date, rendered at view time).
+  - **Hero strip** (4 fun-fact tiles): `IN THE LIBRARY` (title count + a
+    3-segment format-split micro-bar), `TOTAL RUNTIME` (days + a decorative
+    accent-bar equalizer), `AVERAGE RATING` (score + a horizontal-meter
+    showing `avg/10`), `YEARS OF CINEMA` (max year − min year + 1, with a
+    timeline rule + the oldest → newest title names).
+  - **Row A — Collection over time + By format**: a smooth area + line of
+    titles by decade (Catmull-Rom curve via `smoothPath()`, viewBox 760×230,
+    plot inset x 14→746, y 22→196, dashed vertical guide + dot at the peak
+    decade) sized against a 1.85fr column; alongside, a donut of format
+    share (`r=70`, `stroke-width=25`, ~10px segment gaps, rotated `-90°`),
+    center label = `formatSum` over `DISCS & FILES`, and a legend with
+    color chip · name · pct · count.
+  - **Row B — IMDb rating spread + Plex + Rating mix**: a 5-bucket
+    vertical-bar histogram (`<6, 6, 7, 8, 9+`) of `discImdbScore()` values
+    with an `AVG x.y` pill positioned via `ratingPositionPct()` (each
+    bucket = 20% of the track, the score lands proportionally inside its
+    bucket — so 7.1 maps to 42%). Right column is a vertical stack of a
+    Plex ring (`r=64`, `stroke-width=20`) showing `ripped / rippableTotal`
+    with a single rounded segment, and a **Rating Mix** horizontal stacked
+    bar of the top 3 MPAA values + an `Other` segment, colored with the
+    accent ramp.
+  - **Row C — Genre treemap**: a squarified treemap (`squarify()` port of
+    the Bruls et al. layout) of the top 10 genres by count, packed into a
+    1264×300 reference box and rendered with percent-based horizontal
+    positions + pixel vertical positions. Tile fill is an OKLCH ramp of
+    the accent hue (L 0.80 → 0.40 from largest → smallest); label text
+    flips dark/light based on tile lightness; small tiles drop their label.
+  - **Row D — Collection highlights**: up to four poster-led cards (top
+    rated, longest, newest, oldest) chosen by `pickExtreme()`. Each card
+    is a `data-action="open-detail"` shortcut into the disc's detail
+    modal. Missing picks omit their card; the whole row disappears if
+    none qualify.
+  - **Row E — Directors leaderboard + Studios cloud**: a ranked list of
+    the top 6 directors with two-digit ranks, name, proportional accent
+    track (max = highest count), and a count column; alongside, a tag
+    cloud of the top 8 studios where font size, padding, OKLCH background
+    lightness/chroma, border alpha, and text color all scale with each
+    studio's count via a single `t = count / max` ratio.
+  - **Drill-downs**: clicks on donut segments, format legend rows, the
+    Plex ring, MPAA stacked-bar segments + chips, treemap tiles, directors
+    rows, and studio pills all carry `data-action="stats-drill"` with a
+    single descriptor (`data-fmt`, `data-plex`, or `data-q`); the
+    dispatcher sets that one filter, resets the others, and switches to
+    the wall. The area chart and histogram remain display-only because
+    year and rating aren't part of the searchable text.
+  - **Entrance animation**: the wrapping `.stats-v2` section fades up via
+    a CSS animation; histogram bars and the directors leaderboard fills
+    additionally grow from zero — they render at `height:0` / `width:0`
+    with the target on `data-h` / `data-w`, and `animateStats()` (called
+    from `renderContent()` after mounting) flips them to the real value
+    on a double-rAF so the CSS transitions animate them up. The two OMDB sources don't have equal coverage —
   `imdbRating` is populated for far more titles than the `Ratings` array,
   which is frequently empty for less-mainstream releases — so a title is
   counted as long as *either* carries a score. Titles saved before the app
@@ -651,15 +686,33 @@ When you add a feature:
 
 ---
 
-*Last revised: 2026-06-23 (stats page made more engaging: added a **Collection
+*Last revised: 2026-06-25 (Stats view redesigned as a multi-section dashboard.
+The old `stats-grid` of horizontal bar panels is replaced by a section-by-section
+layout: a four-tile fun-fact hero strip with per-tile micro-visuals; a smooth
+area + line of titles by decade with a peak-decade marker (`smoothPath()`
+ports a Catmull-Rom curve, tension 0.16); a format donut with center label and
+legend; a vertical-bar IMDb-rating histogram with an `AVG x.y` pill positioned
+via `ratingPositionPct()`; a Plex archive radial ring; a stacked **Rating Mix**
+bar of the top 3 MPAA values + Other; a squarified genre treemap (`squarify()`
+ports the Bruls et al. layout, OKLCH lightness ramp on the accent hue); the
+existing Collection highlights row of poster cards; a directors leaderboard;
+and a studios tag cloud. All charts render as inline SVG / DOM — no external
+charting library. Existing drill-downs are preserved on donut segments, legend
+rows, the Plex ring, MPAA segments + chips, treemap tiles, directors rows, and
+studio pills via the same `stats-drill` dispatcher action. The old `bars()`
+helper, `.bar-list / .bar-row / .bar-fill` CSS, and `.big-stats / .stats-grid /
+.stats-panel / .spotlight*` classes were removed in favor of the new `.sv2-*`
+classes; `animateStats()` now grows histogram heights (`data-h`) and leaderboard
+widths (`data-w`) instead of generic bar fills. Header, toolbar, and fonts
+(Barlow Condensed / Barlow / Space Mono) are unchanged. Previous: stats page made more engaging — added a **Collection
 highlights** spotlight row of poster-led cards — top rated / longest / newest /
 oldest, each via `pickExtreme()` and linking into the detail modal — plus an
-**IMDb ratings** histogram panel. Bar rows are now optionally **drillable**
+**IMDb ratings** histogram panel. Bar rows became optionally **drillable**
 (`bars()` gained a `drillFor(key)` arg yielding a `{ q }`/`{ fmt }`/`{ plex }`
-descriptor): by-format, Plex-status, genre, director, and studio bars jump to a
-filtered wall via the new `stats-drill` action, which sets one filter dimension
-and resets the rest. `genre` was added to `filteredSorted()`'s searchable text
-so genre drills resolve through the search box. Bars animate in from zero via
+descriptor): by-format, Plex-status, genre, director, and studio bars jumped to
+a filtered wall via the new `stats-drill` action, which set one filter dimension
+and reset the rest. `genre` was added to `filteredSorted()`'s searchable text
+so genre drills resolve through the search box. Bars animated in from zero via
 `animateStats()`. Previous: follow-up to the in-app Recalculate stats fix: the
 SQL `AVG(imdb_rating)` was sitting ~0.6 below the stats page's "Avg IMDb
 rating" because early inserts only ever wrote the IMDb score to the `ratings`
